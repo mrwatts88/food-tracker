@@ -25,6 +25,3 @@ fitness-api/.env
 # Editors
 .vscode/
 .idea/
-
-# Legacy backend repo kept outside the new deploy path
-fitness-server/
