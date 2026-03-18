@@ -1,0 +1,48 @@
+{
+  "calories": [
+    {
+      "id": "1",
+      "amount": 450,
+      "created_at": "2026-01-11 08:30:00"
+    },
+    {
+      "id": "2",
+      "amount": 320,
+      "created_at": "2026-01-11 12:15:00"
+    }
+  ],
+  "weight": [
+    {
+      "created_at": "2026-01-11",
+      "amount": 185.4,
+      "id": "adde"
+    },
+    {
+      "created_at": "2026-01-10",
+      "amount": 186.2,
+      "id": "cfcd"
+    },
+    {
+      "created_at": "2026-01-09",
+      "amount": 185.8,
+      "id": "9062"
+    },
+    {
+      "created_at": "2026-01-08",
+      "amount": 187.1,
+      "id": "feb9"
+    },
+    {
+      "created_at": "2026-01-07",
+      "amount": 186.9,
+      "id": "3153"
+    },
+    {
+      "id": "21c3",
+      "amount": 199.9
+    }
+  ],
+  "tdee": {
+    "amount": 2777
+  }
+}

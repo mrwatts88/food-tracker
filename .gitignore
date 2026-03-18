@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+fitness-web/node_modules/
+fitness-api/node_modules/
+
+# Build output
+dist/
+fitness-web/dist/
+fitness-api/dist/
+coverage/
+
+# Env files
+.env
+.env.*
+!.env.example
+fitness-web/.env
+fitness-api/.env
+
+# Logs and caches
+*.log
+.DS_Store
+.eslintcache
+*.tsbuildinfo
+
+# Editors
+.vscode/
+.idea/
+
+# Legacy backend repo kept outside the new deploy path
+fitness-server/

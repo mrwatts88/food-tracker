@@ -1,0 +1,26 @@
+{
+  "name": "fitness",
+  "private": true,
+  "workspaces": [
+    "fitness-api",
+    "fitness-web"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "run-p dev:api dev:web",
+    "dev:api": "npm run dev --workspace fitness-api",
+    "dev:web": "npm run dev --workspace fitness-web",
+    "build": "run-s test build:api build:web",
+    "build:api": "npm run build --workspace fitness-api",
+    "build:web": "npm run build --workspace fitness-web",
+    "test": "npm run test --workspace fitness-api",
+    "db:generate": "npm run db:generate --workspace fitness-api",
+    "db:migrate": "npm run db:migrate --workspace fitness-api",
+    "db:seed": "npm run db:seed --workspace fitness-api"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^8.0.4"
+  }
+}
