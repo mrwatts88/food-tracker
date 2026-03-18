@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 
 import { createApp } from './app'
 import { readMigrationFiles } from './db/run-migrations'
-import { calorieEntries, quickAddFoods, schema, weightEntries } from './db/schema'
+import { calorieEntries, proteinEntries, quickAddFoods, schema, weightEntries } from './db/schema'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -110,6 +110,41 @@ describe('fitness api', () => {
     expect(deleteResponse.status).toBe(200)
   })
 
+  it('creates, lists, and deletes protein entries for the current local day', async () => {
+    await db.insert(proteinEntries).values({
+      amount: 25,
+      createdAt: new Date('2026-03-17T04:59:59.000Z')
+    })
+
+    const createResponse = await app.request('/api/protein', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 40 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const listResponse = await app.request('/api/protein')
+    const entries = (await listResponse.json()) as Array<{
+      id: number
+      amount: number
+      createdAt: string
+    }>
+
+    expect(listResponse.status).toBe(200)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      amount: 40,
+      createdAt: '2026-03-17 12:00:00'
+    })
+
+    const deleteResponse = await app.request(`/api/protein/${entries[0].id}`, {
+      method: 'DELETE'
+    })
+
+    expect(deleteResponse.status).toBe(200)
+  })
+
   it('creates, updates, consumes, and deletes quick add foods', async () => {
     const createResponse = await app.request('/api/quickadd', {
       method: 'POST',
@@ -177,8 +212,45 @@ describe('fitness api', () => {
     expect(deleteResponse.status).toBe(200)
   })
 
+  it('creates protein entries from quick add consume when target is protein', async () => {
+    const createResponse = await app.request('/api/quickadd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Chicken Breast',
+        unit: 'serving',
+        amount: 1,
+        calories: 180,
+        fatGrams: 4,
+        carbsGrams: 0,
+        proteinGrams: 26.4,
+        sugarGrams: 0
+      })
+    })
+
+    const createdFood = (await createResponse.json()) as { id: number }
+
+    const consumeResponse = await app.request(`/api/quickadd/${createdFood.id}/consume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ multiplier: 2, target: 'protein' })
+    })
+
+    expect(consumeResponse.status).toBe(201)
+    await expect(consumeResponse.json()).resolves.toMatchObject({
+      amount: 53
+    })
+
+    const proteinListResponse = await app.request('/api/protein')
+    const proteinList = (await proteinListResponse.json()) as Array<{ amount: number }>
+
+    expect(proteinListResponse.status).toBe(200)
+    expect(proteinList[0]).toMatchObject({ amount: 53 })
+  })
+
   it('calculates TDEE from the rolling calorie and weight windows', async () => {
     await db.delete(calorieEntries)
+    await db.delete(proteinEntries)
     await db.delete(weightEntries)
     await db.delete(quickAddFoods)
 
@@ -240,6 +312,7 @@ describe('fitness api', () => {
 
   it('returns zeros for TDEE when weight history is missing', async () => {
     await db.delete(calorieEntries)
+    await db.delete(proteinEntries)
     await db.delete(weightEntries)
 
     const response = await app.request('/api/tdee')

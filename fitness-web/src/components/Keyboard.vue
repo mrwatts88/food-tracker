@@ -1,10 +1,10 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import type { Mode } from '@/types'
+import type { TrackMode } from '@/types'
 
 interface Props {
-  mode: Mode
+  mode: TrackMode | 'weight'
   submitting?: boolean
 }
 
@@ -62,7 +62,11 @@ function handleSubmit() {
 }
 
 const primaryColor = computed(() => {
-  return props.mode === 'calorie' ? 'var(--color-calorie-primary)' : 'var(--color-weight-primary)'
+  if (props.mode === 'weight') {
+    return 'var(--color-weight-primary)'
+  }
+
+  return props.mode === 'protein' ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
 })
 
 onMounted(() => {

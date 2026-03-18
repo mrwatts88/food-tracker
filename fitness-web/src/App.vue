@@ -2,6 +2,7 @@
 import { onMounted } from 'vue';
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
+import { useProteinStore } from '@/stores/protein'
 import { useWeightStore } from '@/stores/weight'
 import { useQuickAddStore } from '@/stores/quickadd'
 import ModeToggle from '@/components/ModeToggle.vue'
@@ -13,12 +14,14 @@ import QuickAddConfig from './components/QuickAddConfig.vue';
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
+const proteinStore = useProteinStore()
 const weightStore = useWeightStore()
 const quickAddStore = useQuickAddStore()
 
 onMounted(async () => {
   await Promise.all([
     calorieStore.refreshData(),
+    proteinStore.refreshData(),
     weightStore.fetchEntries(),
     quickAddStore.fetchFoods()
   ])
@@ -43,6 +46,7 @@ onMounted(async () => {
 <style>
 :root {
   --color-calorie-primary: #10b981;
+  --color-protein-primary: #3b82f6;
   --color-weight-primary: #f59e0b;
   --color-background: #1f2937;
   --color-surface: #374151;

@@ -1,11 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { useAppStore } from '@/stores/app'
 import { useQuickAddStore } from '@/stores/quickadd'
 
+const appStore = useAppStore()
 const quickAddStore = useQuickAddStore()
 
 function getTapCount(foodId: number): number {
   return quickAddStore.pendingTaps.get(foodId) || 0
 }
+
+const isProteinMode = computed(() => appStore.trackMode === 'protein')
+
+function getFoodInfo(calories: number, proteinGrams: number) {
+  if (isProteinMode.value) {
+    return `${Math.round(proteinGrams)} g protein`
+  }
+
+  return `${calories} cal`
+}
+
+const activeColor = computed(() => {
+  return isProteinMode.value ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
+})
 </script>
 
 <template>
@@ -20,11 +38,14 @@ function getTapCount(foodId: number): number {
         :key="food.id"
         class="food-item"
         :class="{ 'has-taps': getTapCount(food.id) > 0 }"
+        :style="{ '--track-active-color': activeColor }"
         @click="quickAddStore.incrementTap(food.id)"
         @contextmenu.prevent="quickAddStore.decrementTap(food.id)"
       >
         <div class="food-name">{{ food.name }}</div>
-        <div class="food-info">{{ food.amount }} {{ food.unit }} - {{ food.calories }} cal</div>
+        <div class="food-info">
+          {{ food.amount }} {{ food.unit }} - {{ getFoodInfo(food.calories, food.proteinGrams) }}
+        </div>
         <div v-if="getTapCount(food.id) > 0" class="tap-badge">
           {{ getTapCount(food.id) }}
         </div>
@@ -86,8 +107,8 @@ function getTapCount(foodId: number): number {
 }
 
 .food-item.has-taps {
-  border-color: var(--color-calorie-primary);
-  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--track-active-color);
+  background: color-mix(in srgb, var(--track-active-color) 12%, transparent);
 }
 
 .food-name {
@@ -110,7 +131,7 @@ function getTapCount(foodId: number): number {
   right: -8px;
   width: 28px;
   height: 28px;
-  background: var(--color-calorie-primary);
+  background: var(--track-active-color);
   color: white;
   border-radius: 50%;
   display: flex;

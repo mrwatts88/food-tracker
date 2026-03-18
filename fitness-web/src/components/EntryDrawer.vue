@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
 import CalorieEntryList from './CalorieEntryList.vue'
+import ProteinEntryList from './ProteinEntryList.vue'
 import WeightEntryList from './WeightEntryList.vue'
 
 const appStore = useAppStore()
 
 function handleBackdropClick() {
   appStore.closeDrawer()
+}
+
+const trackTitle = {
+  calorie: "Today's Calorie Entries",
+  protein: "Today's Protein Entries"
 }
 </script>
 
@@ -15,8 +21,15 @@ function handleBackdropClick() {
     <div v-if="appStore.isDrawerOpen" class="drawer-overlay" @click="handleBackdropClick">
       <div class="drawer-content" @click.stop>
         <div class="drawer-header">
-          <h2 class="drawer-title">
-            {{ appStore.mode === 'calorie' ? 'Today\'s Entries' : 'Weight History' }}
+          <h2
+            class="drawer-title"
+            :class="{
+              'drawer-title--calorie': appStore.mode === 'calorie' && appStore.trackMode === 'calorie',
+              'drawer-title--protein': appStore.mode === 'calorie' && appStore.trackMode === 'protein',
+              'drawer-title--weight': appStore.mode === 'weight'
+            }"
+          >
+            {{ appStore.mode === 'calorie' ? trackTitle[appStore.trackMode] : 'Weight History' }}
           </h2>
           <button class="close-button" @click="appStore.closeDrawer">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -30,7 +43,8 @@ function handleBackdropClick() {
           </button>
         </div>
         <div class="drawer-body">
-          <CalorieEntryList v-if="appStore.mode === 'calorie'" />
+          <CalorieEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'calorie'" />
+          <ProteinEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'protein'" />
           <WeightEntryList v-if="appStore.mode === 'weight'" />
         </div>
       </div>
@@ -75,6 +89,18 @@ function handleBackdropClick() {
   font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.drawer-title--calorie {
+  color: var(--color-calorie-primary);
+}
+
+.drawer-title--protein {
+  color: var(--color-protein-primary);
+}
+
+.drawer-title--weight {
+  color: var(--color-weight-primary);
 }
 
 .close-button {

@@ -1,4 +1,5 @@
 import { readdir, readFile } from "node:fs/promises"
+import { fileURLToPath } from "node:url"
 import path from "node:path"
 
 type Queryable = {
@@ -6,10 +7,12 @@ type Queryable = {
 }
 
 const MIGRATIONS_TABLE = '__fitness_migrations'
+const currentDir = path.dirname(fileURLToPath(import.meta.url))
+const defaultMigrationsDir = path.resolve(currentDir, '../../drizzle')
 
 export async function runMigrations(
   client: Queryable,
-  migrationsDir = path.resolve(import.meta.dirname, '../../drizzle')
+  migrationsDir = defaultMigrationsDir
 ) {
   await client.query(
     `CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
@@ -35,7 +38,7 @@ export async function runMigrations(
 }
 
 export async function readMigrationFiles(
-  migrationsDir = path.resolve(import.meta.dirname, '../../drizzle')
+  migrationsDir = defaultMigrationsDir
 ) {
   const files = (await readdir(migrationsDir))
     .filter(file => file.endsWith('.sql'))

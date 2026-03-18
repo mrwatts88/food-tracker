@@ -1,18 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { useAppStore } from '@/stores/app'
 import { useQuickAddStore } from '@/stores/quickadd'
 
+const appStore = useAppStore()
 const quickAddStore = useQuickAddStore()
 
 async function handleSubmit() {
   await quickAddStore.submitTaps()
 }
+
+const accentColor = computed(() => {
+  return appStore.trackMode === 'protein' ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
+})
 </script>
 
 <template>
   <div class="quick-add-display">
     <div class="pending-info">
-      <div class="pending-label">Pending Calories</div>
-      <div class="pending-value">{{ quickAddStore.pendingCalories.toLocaleString() }}</div>
+      <div class="pending-label">{{ quickAddStore.pendingLabel }}</div>
+      <div class="pending-value" :style="{ color: accentColor }">
+        {{ quickAddStore.pendingAmount.toLocaleString() }} {{ quickAddStore.pendingUnit }}
+      </div>
     </div>
     <div class="action-buttons">
       <button
@@ -24,6 +34,7 @@ async function handleSubmit() {
       </button>
       <button
         class="submit-button"
+        :style="{ background: accentColor }"
         :disabled="!quickAddStore.hasPendingTaps || quickAddStore.submitting"
         @click="handleSubmit"
       >
@@ -57,7 +68,6 @@ async function handleSubmit() {
 .pending-value {
   font-size: 24px;
   font-weight: 700;
-  color: var(--color-calorie-primary);
 }
 
 .action-buttons {
@@ -88,7 +98,6 @@ async function handleSubmit() {
 }
 
 .submit-button {
-  background: var(--color-calorie-primary);
   color: white;
 }
 

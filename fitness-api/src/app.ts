@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { loadConfig, type AppConfig } from './config'
 import { getDatabase, type Database } from './db/client'
-import { calorieEntries, quickAddFoods, weightEntries } from './db/schema'
+import { calorieEntries, proteinEntries, quickAddFoods, weightEntries } from './db/schema'
 import { formatDate, formatTimestamp, getDateRange, getDateRangeStrings, getTodayBounds } from './lib/time'
 
 type AppDependencies = {
@@ -43,7 +43,8 @@ const quickAddFoodSchema = z.object({
 })
 
 const consumeSchema = z.object({
-  multiplier: z.number().int().positive()
+  multiplier: z.number().int().positive(),
+  target: z.enum(['calorie', 'protein']).default('calorie')
 })
 
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -137,6 +138,65 @@ export function createApp(dependencies: AppDependencies = {}) {
 
     if (!deleted) {
       throw new ApiError(404, 'Calorie entry not found')
+    }
+
+    return c.body(null, 200)
+  })
+
+  app.get('/protein', async c => {
+    const runtime = getRuntime(dependencies)
+    const today = getTodayBounds(runtime.now(), runtime.config.appTimezone)
+
+    const entries = await runtime.db
+      .select()
+      .from(proteinEntries)
+      .where(gte(proteinEntries.createdAt, today.startUtc))
+      .orderBy(desc(proteinEntries.createdAt))
+
+    return c.json(
+      entries.map(entry => ({
+        id: entry.id,
+        amount: entry.amount,
+        createdAt: formatTimestamp(entry.createdAt, runtime.config.appTimezone)
+      }))
+    )
+  })
+
+  app.post('/protein', async c => {
+    const runtime = getRuntime(dependencies)
+    const input = calorieEntrySchema.parse(await c.req.json())
+
+    const [entry] = await runtime.db
+      .insert(proteinEntries)
+      .values({
+        amount: input.amount,
+        createdAt: runtime.now()
+      })
+      .returning()
+
+    const createdEntry = assertFound(entry, 'Failed to create protein entry')
+
+    return c.json(
+      {
+        id: createdEntry.id,
+        amount: createdEntry.amount,
+        createdAt: formatTimestamp(createdEntry.createdAt, runtime.config.appTimezone)
+      },
+      201
+    )
+  })
+
+  app.delete('/protein/:id', async c => {
+    const runtime = getRuntime(dependencies)
+    const id = parsePositiveInteger(c.req.param('id'), 'id')
+
+    const [deleted] = await runtime.db
+      .delete(proteinEntries)
+      .where(eq(proteinEntries.id, id))
+      .returning({ id: proteinEntries.id })
+
+    if (!deleted) {
+      throw new ApiError(404, 'Protein entry not found')
     }
 
     return c.body(null, 200)
@@ -307,7 +367,10 @@ export function createApp(dependencies: AppDependencies = {}) {
     const input = consumeSchema.parse(await c.req.json())
 
     const [food] = await runtime.db
-      .select({ calories: quickAddFoods.calories })
+      .select({
+        calories: quickAddFoods.calories,
+        proteinGrams: quickAddFoods.proteinGrams
+      })
       .from(quickAddFoods)
       .where(eq(quickAddFoods.id, id))
       .limit(1)
@@ -316,15 +379,27 @@ export function createApp(dependencies: AppDependencies = {}) {
       throw new ApiError(404, 'Quick add food not found')
     }
 
-    const [entry] = await runtime.db
-      .insert(calorieEntries)
-      .values({
-        amount: food.calories * input.multiplier,
-        createdAt: runtime.now()
-      })
-      .returning()
+    const [entry] =
+      input.target === 'protein'
+        ? await runtime.db
+            .insert(proteinEntries)
+            .values({
+              amount: Math.round(food.proteinGrams * input.multiplier),
+              createdAt: runtime.now()
+            })
+            .returning()
+        : await runtime.db
+            .insert(calorieEntries)
+            .values({
+              amount: food.calories * input.multiplier,
+              createdAt: runtime.now()
+            })
+            .returning()
 
-    const createdEntry = assertFound(entry, 'Failed to create calorie entry')
+    const createdEntry = assertFound(
+      entry,
+      `Failed to create ${input.target === 'protein' ? 'protein' : 'calorie'} entry`
+    )
 
     return c.json(
       {

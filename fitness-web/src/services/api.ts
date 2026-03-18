@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type {
   CalorieEntry,
+  ProteinEntry,
   QuickAddFood,
   TDEEResponse,
   WeightEntry
@@ -18,6 +19,13 @@ export const calorieApi = {
   getEntries: () => api.get<CalorieEntry[]>('/calories'),
   addEntry: (amount: number) => api.post<CalorieEntry>('/calories', { amount }),
   deleteEntry: (id: number) => api.delete(`/calories/${id}`)
+}
+
+// Protein API
+export const proteinApi = {
+  getEntries: () => api.get<ProteinEntry[]>('/protein'),
+  addEntry: (amount: number) => api.post<ProteinEntry>('/protein', { amount }),
+  deleteEntry: (id: number) => api.delete(`/protein/${id}`)
 }
 
 // Weight API
@@ -38,5 +46,9 @@ export const quickAddApi = {
   createFood: (food: Omit<QuickAddFood, 'id' | 'createdAt'>) => api.post('/quickadd', food),
   updateFood: (id: number, food: Omit<QuickAddFood, 'id' | 'createdAt'>) => api.put(`/quickadd/${id}`, food),
   deleteFood: (id: number) => api.delete(`/quickadd/${id}`),
-  consumeFood: (id: number, multiplier: number) => api.post(`/quickadd/${id}/consume`, { multiplier })
+  consumeFood: (id: number, multiplier: number, target?: 'calorie' | 'protein') =>
+    api.post(`/quickadd/${id}/consume`, {
+      multiplier,
+      ...(target ? { target } : {})
+    })
 }

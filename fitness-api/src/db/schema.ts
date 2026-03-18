@@ -6,6 +6,12 @@ export const calorieEntries = pgTable('calorie_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const proteinEntries = pgTable('protein_entries', {
+  id: serial('id').primaryKey(),
+  amount: integer('amount').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const weightEntries = pgTable('weight_entries', {
   createdAt: date('created_at').primaryKey(),
   amount: doublePrecision('amount').notNull()
@@ -26,6 +32,7 @@ export const quickAddFoods = pgTable('quick_add_foods', {
 
 export const schema = {
   calorieEntries,
+  proteinEntries,
   weightEntries,
   quickAddFoods
 }

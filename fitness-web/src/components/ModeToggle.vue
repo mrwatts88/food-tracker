@@ -18,7 +18,7 @@ function handleModeChange(mode: Mode) {
   <div class="mode-toggle">
     <button :class="['toggle-button', { active: appStore.mode === 'calorie' }]"
       :style="{ '--active-color': 'var(--color-calorie-primary)' }" @click="handleModeChange('calorie')">
-      Calories
+      Track
     </button>
     <button :class="['toggle-button', { active: appStore.mode === 'weight' }]"
       :style="{ '--active-color': 'var(--color-weight-primary)' }" @click="handleModeChange('weight')">

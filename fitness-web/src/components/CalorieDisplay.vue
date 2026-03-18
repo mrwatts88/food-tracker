@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useCalorieStore } from '@/stores/calorie'
+import { useProteinStore } from '@/stores/protein'
 import { useAppStore } from '@/stores/app'
 import type { DisplayMode } from '@/types'
 
 const calorieStore = useCalorieStore()
+const proteinStore = useProteinStore()
 const appStore = useAppStore()
 const displayMode = ref<DisplayMode>('consumed')
 
+const isProteinMode = computed(() => appStore.trackMode === 'protein')
+
 const displayValue = computed(() => {
+  if (isProteinMode.value) {
+    return proteinStore.totalProtein
+  }
+
   switch (displayMode.value) {
     case 'consumed':
       return calorieStore.totalCalories
@@ -22,6 +30,10 @@ const displayValue = computed(() => {
 })
 
 const displayLabel = computed(() => {
+  if (isProteinMode.value) {
+    return 'Protein Today'
+  }
+
   switch (displayMode.value) {
     case 'consumed':
       return 'Calories Today'
@@ -35,11 +47,31 @@ const displayLabel = computed(() => {
 })
 
 function cycleDisplayMode() {
+  if (isProteinMode.value) {
+    return
+  }
+
   const modes: DisplayMode[] = ['consumed', 'remaining', 'goal']
   const currentIndex = modes.indexOf(displayMode.value)
   const nextIndex = (currentIndex + 1) % modes.length
   displayMode.value = modes[nextIndex] as DisplayMode
 }
+
+const isLoading = computed(() => {
+  return isProteinMode.value ? proteinStore.loading : calorieStore.loading
+})
+
+const isSubmitting = computed(() => {
+  return isProteinMode.value ? proteinStore.submittingEntry : calorieStore.submittingEntry
+})
+
+const accentColor = computed(() => {
+  return isProteinMode.value ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
+})
+
+const loadingLabel = computed(() => {
+  return isProteinMode.value ? 'Loading protein' : 'Loading calories'
+})
 </script>
 
 <template>
@@ -47,22 +79,23 @@ function cycleDisplayMode() {
     <div class="label">{{ displayLabel }}</div>
     <div class="value-row">
       <div
-        v-if="calorieStore.loading && !calorieStore.submittingEntry"
+        v-if="isLoading && !isSubmitting"
         class="loading-indicator"
         role="status"
-        aria-label="Loading calories"
+        :aria-label="loadingLabel"
       >
-        <span class="loading-spinner"></span>
+        <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
       </div>
       <div
         v-else
         class="value"
-        :class="{ 'value-submitting': calorieStore.submittingEntry }"
+        :class="{ 'value-submitting': isSubmitting }"
+        :style="{ color: accentColor }"
         @click="cycleDisplayMode"
       >
         {{ displayValue.toLocaleString() }}
       </div>
-      <button class="history-button" @click="appStore.openDrawer">
+      <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6" />
@@ -121,7 +154,6 @@ function cycleDisplayMode() {
 .value {
   font-size: 56px;
   font-weight: 700;
-  color: var(--color-calorie-primary);
   line-height: 1;
   cursor: pointer;
   transition: opacity 0.2s ease;
@@ -142,8 +174,8 @@ function cycleDisplayMode() {
 .loading-spinner {
   width: 26px;
   height: 26px;
-  border: 3px solid rgba(16, 185, 129, 0.25);
-  border-top-color: var(--color-calorie-primary);
+  border: 3px solid color-mix(in srgb, var(--spinner-color) 25%, transparent);
+  border-top-color: var(--spinner-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -153,7 +185,6 @@ function cycleDisplayMode() {
   background: var(--color-surface);
   border: none;
   border-radius: var(--border-radius);
-  color: var(--color-calorie-primary);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -164,7 +195,7 @@ function cycleDisplayMode() {
 
 .history-button:active {
   transform: scale(0.98);
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 @keyframes spin {
