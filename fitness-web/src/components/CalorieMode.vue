@@ -35,26 +35,36 @@ function handleTrackModeChange(trackMode: TrackMode) {
 
 <template>
   <div class="calorie-mode">
-    <CalorieDisplay />
-    <div class="track-toggle">
-      <button
-        :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
-        @click="handleTrackModeChange('calorie')"
-      >
-        Calories
-      </button>
-      <button
-        :class="['track-toggle-button', 'track-toggle-button--protein', { active: appStore.trackMode === 'protein' }]"
-        @click="handleTrackModeChange('protein')"
-      >
-        Protein
-      </button>
-    </div>
+    <template v-if="appStore.inputMode === 'keyboard'">
+      <CalorieDisplay />
+      <div class="track-toggle">
+        <button
+          :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
+          @click="handleTrackModeChange('calorie')"
+        >
+          Calories
+        </button>
+        <button
+          :class="[
+            'track-toggle-button',
+            'track-toggle-button--protein',
+            { active: appStore.trackMode === 'protein' }
+          ]"
+          @click="handleTrackModeChange('protein')"
+        >
+          Protein
+        </button>
+      </div>
+    </template>
     <div class="input-section">
       <Keyboard
         v-if="appStore.inputMode === 'keyboard'"
         :mode="appStore.trackMode"
-        :submitting="appStore.trackMode === 'protein' ? proteinStore.submittingEntry : calorieStore.submittingEntry"
+        :submitting="
+          appStore.trackMode === 'protein'
+            ? proteinStore.submittingEntry
+            : calorieStore.submittingEntry
+        "
         @submit="handleSubmit"
       />
       <template v-else>
@@ -77,6 +87,13 @@ function handleTrackModeChange(trackMode: TrackMode) {
   display: flex;
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
+}
+
+@media (min-width: 429px) {
+  .track-toggle {
+    border-left: 3px solid var(--color-surface);
+    border-right: 3px solid var(--color-surface);
+  }
 }
 
 .track-toggle-button {

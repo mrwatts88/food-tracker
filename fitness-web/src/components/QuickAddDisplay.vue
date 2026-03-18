@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-
-import { useAppStore } from '@/stores/app'
 import { useQuickAddStore } from '@/stores/quickadd'
 
-const appStore = useAppStore()
 const quickAddStore = useQuickAddStore()
 
 async function handleSubmit() {
   await quickAddStore.submitTaps()
 }
-
-const accentColor = computed(() => {
-  return appStore.trackMode === 'protein' ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
-})
 </script>
 
 <template>
   <div class="quick-add-display">
-    <div class="pending-info">
-      <div class="pending-label">{{ quickAddStore.pendingLabel }}</div>
-      <div class="pending-value" :style="{ color: accentColor }">
-        {{ quickAddStore.pendingAmount.toLocaleString() }} {{ quickAddStore.pendingUnit }}
+    <div class="pending-metrics">
+      <div class="pending-info">
+        <div class="pending-label">Pending Calories</div>
+        <div class="pending-value pending-value--calories">
+          {{ quickAddStore.pendingCalories.toLocaleString() }} cal
+        </div>
+      </div>
+      <div class="pending-info">
+        <div class="pending-label">Pending Protein</div>
+        <div class="pending-value pending-value--protein">
+          {{ quickAddStore.pendingProtein.toLocaleString() }} g
+        </div>
       </div>
     </div>
     <div class="action-buttons">
@@ -34,7 +34,6 @@ const accentColor = computed(() => {
       </button>
       <button
         class="submit-button"
-        :style="{ background: accentColor }"
         :disabled="!quickAddStore.hasPendingTaps || quickAddStore.submitting"
         @click="handleSubmit"
       >
@@ -50,12 +49,20 @@ const accentColor = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+}
+
+.pending-metrics {
+  display: flex;
+  gap: var(--spacing-md);
+  min-width: 0;
 }
 
 .pending-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .pending-label {
@@ -68,6 +75,14 @@ const accentColor = computed(() => {
 .pending-value {
   font-size: 24px;
   font-weight: 700;
+}
+
+.pending-value--calories {
+  color: var(--color-calorie-primary);
+}
+
+.pending-value--protein {
+  color: var(--color-protein-primary);
 }
 
 .action-buttons {
@@ -98,6 +113,7 @@ const accentColor = computed(() => {
 }
 
 .submit-button {
+  background: linear-gradient(135deg, var(--color-calorie-primary), var(--color-protein-primary));
   color: white;
 }
 

@@ -1,29 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-
-import { useAppStore } from '@/stores/app'
 import { useQuickAddStore } from '@/stores/quickadd'
 
-const appStore = useAppStore()
 const quickAddStore = useQuickAddStore()
 
 function getTapCount(foodId: number): number {
   return quickAddStore.pendingTaps.get(foodId) || 0
 }
 
-const isProteinMode = computed(() => appStore.trackMode === 'protein')
-
 function getFoodInfo(calories: number, proteinGrams: number) {
-  if (isProteinMode.value) {
-    return `${Math.round(proteinGrams)} g protein`
-  }
-
-  return `${calories} cal`
+  return `${calories} cal • ${Math.round(proteinGrams)} g protein`
 }
-
-const activeColor = computed(() => {
-  return isProteinMode.value ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
-})
 </script>
 
 <template>
@@ -38,7 +24,6 @@ const activeColor = computed(() => {
         :key="food.id"
         class="food-item"
         :class="{ 'has-taps': getTapCount(food.id) > 0 }"
-        :style="{ '--track-active-color': activeColor }"
         @click="quickAddStore.incrementTap(food.id)"
         @contextmenu.prevent="quickAddStore.decrementTap(food.id)"
       >
@@ -107,8 +92,12 @@ const activeColor = computed(() => {
 }
 
 .food-item.has-taps {
-  border-color: var(--track-active-color);
-  background: color-mix(in srgb, var(--track-active-color) 12%, transparent);
+  border-color: var(--color-calorie-primary);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-calorie-primary) 10%, transparent),
+    color-mix(in srgb, var(--color-protein-primary) 10%, transparent)
+  );
 }
 
 .food-name {
@@ -131,7 +120,7 @@ const activeColor = computed(() => {
   right: -8px;
   width: 28px;
   height: 28px;
-  background: var(--track-active-color);
+  background: linear-gradient(135deg, var(--color-calorie-primary), var(--color-protein-primary));
   color: white;
   border-radius: 50%;
   display: flex;

@@ -14,6 +14,11 @@ const api = axios.create({
   }
 })
 
+export interface QuickAddConsumeResponse {
+  calorieEntry: CalorieEntry | null
+  proteinEntry: ProteinEntry | null
+}
+
 // Calorie API
 export const calorieApi = {
   getEntries: () => api.get<CalorieEntry[]>('/calories'),
@@ -47,7 +52,7 @@ export const quickAddApi = {
   updateFood: (id: number, food: Omit<QuickAddFood, 'id' | 'createdAt'>) => api.put(`/quickadd/${id}`, food),
   deleteFood: (id: number) => api.delete(`/quickadd/${id}`),
   consumeFood: (id: number, multiplier: number, target?: 'calorie' | 'protein') =>
-    api.post(`/quickadd/${id}/consume`, {
+    api.post<QuickAddConsumeResponse>(`/quickadd/${id}/consume`, {
       multiplier,
       ...(target ? { target } : {})
     })

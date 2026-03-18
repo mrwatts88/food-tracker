@@ -1,13 +1,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { QuickAddFood } from '@/types'
-import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useProteinStore } from '@/stores/protein'
 import { quickAddApi } from '@/services/api'
 
 export const useQuickAddStore = defineStore('quickadd', () => {
-  const appStore = useAppStore()
   const calorieStore = useCalorieStore()
   const proteinStore = useProteinStore()
   const foods = ref<QuickAddFood[]>([])
@@ -15,26 +13,26 @@ export const useQuickAddStore = defineStore('quickadd', () => {
   const loading = ref(false)
   const submitting = ref(false)
 
-  const pendingAmount = computed(() => {
+  const pendingCalories = computed(() => {
     let total = 0
     for (const [foodId, count] of pendingTaps.value) {
       const food = foods.value.find(f => f.id === foodId)
       if (food) {
-        total +=
-          appStore.trackMode === 'protein'
-            ? Math.round(food.proteinGrams * count)
-            : food.calories * count
+        total += food.calories * count
       }
     }
     return total
   })
 
-  const pendingLabel = computed(() => {
-    return appStore.trackMode === 'protein' ? 'Pending Protein' : 'Pending Calories'
-  })
-
-  const pendingUnit = computed(() => {
-    return appStore.trackMode === 'protein' ? 'g' : 'cal'
+  const pendingProtein = computed(() => {
+    let total = 0
+    for (const [foodId, count] of pendingTaps.value) {
+      const food = foods.value.find(f => f.id === foodId)
+      if (food) {
+        total += Math.round(food.proteinGrams * count)
+      }
+    }
+    return total
   })
 
   const hasPendingTaps = computed(() => pendingTaps.value.size > 0)
@@ -109,29 +107,16 @@ export const useQuickAddStore = defineStore('quickadd', () => {
   async function submitTaps() {
     if (pendingTaps.value.size === 0) return
 
-    let shouldRefreshCalorieData = false
-    let shouldRefreshProteinData = false
-
     try {
       submitting.value = true
       for (const [foodId, count] of pendingTaps.value) {
-        if (appStore.trackMode === 'protein') {
-          shouldRefreshProteinData = true
-        } else {
-          shouldRefreshCalorieData = true
-        }
-        await quickAddApi.consumeFood(foodId, count, appStore.trackMode)
+        await quickAddApi.consumeFood(foodId, count)
       }
       clearTaps()
     } catch (error) {
       console.error('Failed to submit quick add entries:', error)
     } finally {
-      if (shouldRefreshCalorieData) {
-        await calorieStore.refreshData()
-      }
-      if (shouldRefreshProteinData) {
-        await proteinStore.refreshData()
-      }
+      await Promise.all([calorieStore.refreshData(), proteinStore.refreshData()])
       submitting.value = false
     }
   }
@@ -141,9 +126,8 @@ export const useQuickAddStore = defineStore('quickadd', () => {
     pendingTaps,
     loading,
     submitting,
-    pendingAmount,
-    pendingLabel,
-    pendingUnit,
+    pendingCalories,
+    pendingProtein,
     hasPendingTaps,
     fetchFoods,
     createFood,

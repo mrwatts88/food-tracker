@@ -44,7 +44,7 @@ const quickAddFoodSchema = z.object({
 
 const consumeSchema = z.object({
   multiplier: z.number().int().positive(),
-  target: z.enum(['calorie', 'protein']).default('calorie')
+  target: z.enum(['calorie', 'protein']).optional()
 })
 
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -379,33 +379,65 @@ export function createApp(dependencies: AppDependencies = {}) {
       throw new ApiError(404, 'Quick add food not found')
     }
 
-    const [entry] =
-      input.target === 'protein'
-        ? await runtime.db
-            .insert(proteinEntries)
-            .values({
-              amount: Math.round(food.proteinGrams * input.multiplier),
-              createdAt: runtime.now()
-            })
-            .returning()
-        : await runtime.db
-            .insert(calorieEntries)
-            .values({
-              amount: food.calories * input.multiplier,
-              createdAt: runtime.now()
-            })
-            .returning()
+    const calorieAmount = food.calories * input.multiplier
+    const proteinAmount = Math.round(food.proteinGrams * input.multiplier)
+    const createdAt = runtime.now()
 
-    const createdEntry = assertFound(
-      entry,
-      `Failed to create ${input.target === 'protein' ? 'protein' : 'calorie'} entry`
-    )
+    const result = await runtime.db.transaction(async tx => {
+      const calorieEntry =
+        calorieAmount > 0
+          ? assertFound(
+              (
+                await tx
+                  .insert(calorieEntries)
+                  .values({
+                    amount: calorieAmount,
+                    createdAt
+                  })
+                  .returning()
+              )[0],
+              'Failed to create calorie entry'
+            )
+          : null
+
+      const proteinEntry =
+        proteinAmount > 0
+          ? assertFound(
+              (
+                await tx
+                  .insert(proteinEntries)
+                  .values({
+                    amount: proteinAmount,
+                    createdAt
+                  })
+                  .returning()
+              )[0],
+              'Failed to create protein entry'
+            )
+          : null
+
+      return {
+        calorieEntry,
+        proteinEntry
+      }
+    })
 
     return c.json(
       {
-        id: createdEntry.id,
-        amount: createdEntry.amount,
-        createdAt: formatTimestamp(createdEntry.createdAt, runtime.config.appTimezone)
+        calorieEntry: result.calorieEntry
+          ? {
+              id: result.calorieEntry.id,
+              amount: result.calorieEntry.amount,
+              createdAt: formatTimestamp(result.calorieEntry.createdAt, runtime.config.appTimezone)
+            }
+          : null,
+        proteinEntry: result.proteinEntry
+          ? {
+              id: result.proteinEntry.id,
+              amount: result.proteinEntry.amount,
+              createdAt: formatTimestamp(result.proteinEntry.createdAt, runtime.config.appTimezone)
+            }
+          : null
       },
       201
     )
