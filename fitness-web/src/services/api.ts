@@ -7,8 +7,12 @@ import type {
   WeightEntry
 } from '@/types'
 
+const apiBaseUrl = import.meta.env.DEV
+  ? import.meta.env.VITE_API_BASE_URL || '/api'
+  : '/api'
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json'
   }

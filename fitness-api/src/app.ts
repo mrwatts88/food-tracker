@@ -131,14 +131,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     const runtime = getRuntime(dependencies)
     const id = parsePositiveInteger(c.req.param('id'), 'id')
 
-    const [deleted] = await runtime.db
-      .delete(calorieEntries)
-      .where(eq(calorieEntries.id, id))
-      .returning({ id: calorieEntries.id })
-
-    if (!deleted) {
-      throw new ApiError(404, 'Calorie entry not found')
-    }
+    await runtime.db.delete(calorieEntries).where(eq(calorieEntries.id, id))
 
     return c.body(null, 200)
   })
@@ -190,14 +183,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     const runtime = getRuntime(dependencies)
     const id = parsePositiveInteger(c.req.param('id'), 'id')
 
-    const [deleted] = await runtime.db
-      .delete(proteinEntries)
-      .where(eq(proteinEntries.id, id))
-      .returning({ id: proteinEntries.id })
-
-    if (!deleted) {
-      throw new ApiError(404, 'Protein entry not found')
-    }
+    await runtime.db.delete(proteinEntries).where(eq(proteinEntries.id, id))
 
     return c.body(null, 200)
   })
@@ -250,14 +236,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     const runtime = getRuntime(dependencies)
     const date = weightDateSchema.parse(c.req.param('date'))
 
-    const [deleted] = await runtime.db
-      .delete(weightEntries)
-      .where(eq(weightEntries.createdAt, date))
-      .returning({ createdAt: weightEntries.createdAt })
-
-    if (!deleted) {
-      throw new ApiError(404, 'Weight entry not found')
-    }
+    await runtime.db.delete(weightEntries).where(eq(weightEntries.createdAt, date))
 
     return c.body(null, 200)
   })
@@ -349,14 +328,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     const runtime = getRuntime(dependencies)
     const id = parsePositiveInteger(c.req.param('id'), 'id')
 
-    const [deleted] = await runtime.db
-      .delete(quickAddFoods)
-      .where(eq(quickAddFoods.id, id))
-      .returning({ id: quickAddFoods.id })
-
-    if (!deleted) {
-      throw new ApiError(404, 'Quick add food not found')
-    }
+    await runtime.db.delete(quickAddFoods).where(eq(quickAddFoods.id, id))
 
     return c.body(null, 200)
   })

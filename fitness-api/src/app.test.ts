@@ -75,6 +75,14 @@ describe('fitness api', () => {
     expect(deleteResponse.status).toBe(200)
   })
 
+  it('treats deleting a missing calorie entry as a success', async () => {
+    const response = await app.request('/api/calories/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
   it('upserts and deletes weight entries by local date', async () => {
     const firstResponse = await app.request('/api/weight', {
       method: 'POST',
@@ -110,6 +118,14 @@ describe('fitness api', () => {
     expect(deleteResponse.status).toBe(200)
   })
 
+  it('treats deleting a missing weight entry as a success', async () => {
+    const response = await app.request('/api/weight/2026-03-17', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
   it('creates, lists, and deletes protein entries for the current local day', async () => {
     await db.insert(proteinEntries).values({
       amount: 25,
@@ -143,6 +159,14 @@ describe('fitness api', () => {
     })
 
     expect(deleteResponse.status).toBe(200)
+  })
+
+  it('treats deleting a missing protein entry as a success', async () => {
+    const response = await app.request('/api/protein/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
   })
 
   it('creates, updates, consumes, and deletes quick add foods', async () => {
@@ -215,6 +239,14 @@ describe('fitness api', () => {
     })
 
     expect(deleteResponse.status).toBe(200)
+  })
+
+  it('treats deleting a missing quick add food as a success', async () => {
+    const response = await app.request('/api/quickadd/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
   })
 
   it('creates only a protein entry when a quick add food has zero calories', async () => {
