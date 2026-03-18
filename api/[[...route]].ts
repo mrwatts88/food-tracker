@@ -1,21 +1,8 @@
 import { handle } from 'hono/vercel'
 
-type Handler = (request: Request, context?: unknown) => Response | Promise<Response>
+import { app } from '../fitness-api/src/app'
 
-let cachedHandler: Handler | undefined
-
-async function getHandler() {
-  if (!cachedHandler) {
-    const { app } = await import('../fitness-api/src/app')
-    cachedHandler = handle(app)
-  }
-
-  return cachedHandler
-}
-
-async function handler(request: Request, context?: unknown) {
-  return (await getHandler())(request, context)
-}
+const handler = handle(app)
 
 export const GET = handler
 export const POST = handler
