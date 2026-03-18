@@ -122,7 +122,7 @@ Primary backend files:
 - `fitness-api/src/app.ts`
 - `fitness-api/src/db/schema.ts`
 - `fitness-api/src/lib/time.ts`
-- `api/[[...route]].ts`
+- `api/route.ts`
 
 When changing API behavior:
 
@@ -141,7 +141,8 @@ npm run build
 
 Notes:
 
-- `/api/[[...route]].ts` is a thin Vercel adapter only
+- `/api/route.ts` is a thin Vercel adapter only
+- `vercel.json` rewrites `/api/:path*` into that concrete Vercel function so nested API paths work in production
 - Real API logic belongs in `fitness-api/`, not in `api/`
 - Keep the Vercel adapter simple so the backend stays portable
 
@@ -180,6 +181,8 @@ Usually you do not need:
 
 - `VITE_API_BASE_URL`
 - `CORS_ORIGIN`
+
+Production uses same-origin `/api` and ignores `VITE_API_BASE_URL` on purpose. Keep that env var for local-only overrides.
 
 ### Deploy on push
 

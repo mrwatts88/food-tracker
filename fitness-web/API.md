@@ -10,6 +10,8 @@ The frontend defaults to same-origin `/api`.
 
 For local development, Vite proxies `/api` to the backend server.
 
+In production, the frontend always uses same-origin `/api`. `VITE_API_BASE_URL` is only for local or special non-production overrides.
+
 If you need to override this:
 
 ```env
