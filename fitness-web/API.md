@@ -1,49 +1,38 @@
-# API Setup
+# Frontend API Notes
 
-The app now targets the real Node API by default.
+The main developer workflow now lives in the root [README.md](../README.md).
 
-## Local Development
+This file only covers frontend-specific API behavior.
 
-From the workspace root:
-
-```bash
-npm install
-npm run dev:api
-```
-
-The API listens on `http://localhost:3000`.
-
-In another terminal:
-
-```bash
-npm run dev:web
-```
-
-The Vue app runs on `http://localhost:5173` and proxies `/api` requests to the local API server.
-
-You can also run both together with:
-
-```bash
-npm run dev
-```
-
-## API Base URL
+## Base URL
 
 The frontend defaults to same-origin `/api`.
 
-For a custom backend URL, set:
+For local development, Vite proxies `/api` to the backend server.
+
+If you need to override this:
 
 ```env
 VITE_API_BASE_URL=https://your-api.example.com/api
 ```
 
-If your local API is not on port `3000`, set:
+If your local backend is not on port `3000`:
 
 ```env
 VITE_API_PROXY_TARGET=http://localhost:4000
 ```
 
-## Endpoints
+## Frontend API Entry Point
+
+API calls live in:
+
+- `src/services/api.ts`
+
+Shared response/request types live in:
+
+- `src/types.ts`
+
+## Current Endpoints Used By The Frontend
 
 - `GET /api/health`
 - `GET /api/calories`
@@ -58,14 +47,3 @@ VITE_API_PROXY_TARGET=http://localhost:4000
 - `PUT /api/quickadd/:id`
 - `DELETE /api/quickadd/:id`
 - `POST /api/quickadd/:id/consume`
-
-## Database Scripts
-
-From the workspace root:
-
-```bash
-npm run db:migrate
-npm run db:seed
-```
-
-These use the `DATABASE_URL` configured for `fitness-api`.
