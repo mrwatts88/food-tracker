@@ -35,7 +35,7 @@ function handleModeChange(mode: Mode) {
 .mode-toggle {
   display: flex;
   gap: var(--spacing-sm);
-  padding: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-surface);
 }
 

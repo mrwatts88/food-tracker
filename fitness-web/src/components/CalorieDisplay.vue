@@ -135,7 +135,7 @@ const nextUnlockDetail = computed(() => {
   }
 
   if (status.overdrawCalories > 0 && status.nextScheduledUnlockCalories !== status.nextEffectiveUnlockCalories) {
-    return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}, reduced by debt`
+    return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}`
   }
 
   return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}`
@@ -164,7 +164,7 @@ const overdrawMessage = computed(() => {
     return `Overdrawn by ${formatNumber(status.overdrawCalories)}. There are no more unlocks today.`
   }
 
-  return `Overdrawn by ${formatNumber(status.overdrawCalories)}. Next unlock reduced from ${formatNumber(
+  return `Overdrawn by ${formatNumber(status.overdrawCalories)}. Next reduced from ${formatNumber(
     status.nextScheduledUnlockCalories
   )} to ${formatNumber(status.nextEffectiveUnlockCalories)}.`
 })
@@ -323,7 +323,7 @@ function formatNumber(value: number) {
           <div class="status-card">
             <div class="status-label">No-Borrow Streak</div>
             <div class="status-value">{{ streakSummary }}</div>
-            <div class="status-detail">Completed unlock slots across days</div>
+            <div class="status-detail">Completed unlock slots</div>
           </div>
 
           <div class="status-card">
