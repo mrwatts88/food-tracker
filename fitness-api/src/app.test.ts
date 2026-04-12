@@ -17,6 +17,7 @@ const defaultConfig: AppConfig = {
   appTimezone: timezone,
   calorieUnlockSchedule: defaultUnlockSchedule,
   calorieUnlockFallbackGoal: 2000,
+  goalWeight: 189,
   port: 3000
 }
 const app = createTestApp()
@@ -164,6 +165,7 @@ describe('fitness api', () => {
       nextUnlockAt: string | null
       nextScheduledUnlockCalories: number
       nextEffectiveUnlockCalories: number
+      noBorrowUnlockStreak: number
       allCaloriesUnlockedToday: boolean
       timezone: string
       serverNow: string
@@ -179,6 +181,7 @@ describe('fitness api', () => {
       nextUnlockAt: '2026-03-17T09:00:00.000-05:00',
       nextScheduledUnlockCalories: 500,
       nextEffectiveUnlockCalories: 500,
+      noBorrowUnlockStreak: 0,
       allCaloriesUnlockedToday: false,
       timezone,
       serverNow: '2026-03-17T08:30:00.000-05:00'
@@ -206,6 +209,7 @@ describe('fitness api', () => {
       nextUnlockAt: string | null
       nextScheduledUnlockCalories: number
       nextEffectiveUnlockCalories: number
+      noBorrowUnlockStreak: number
       allCaloriesUnlockedToday: boolean
     }
 
@@ -219,6 +223,7 @@ describe('fitness api', () => {
       nextUnlockAt: '2026-03-17T17:00:00.000-05:00',
       nextScheduledUnlockCalories: 500,
       nextEffectiveUnlockCalories: 500,
+      noBorrowUnlockStreak: 1,
       allCaloriesUnlockedToday: false
     })
   })
@@ -242,6 +247,7 @@ describe('fitness api', () => {
       nextUnlockAt: string | null
       nextScheduledUnlockCalories: number
       nextEffectiveUnlockCalories: number
+      noBorrowUnlockStreak: number
       allCaloriesUnlockedToday: boolean
     }
 
@@ -253,6 +259,7 @@ describe('fitness api', () => {
       nextUnlockAt: null,
       nextScheduledUnlockCalories: 0,
       nextEffectiveUnlockCalories: 0,
+      noBorrowUnlockStreak: 0,
       allCaloriesUnlockedToday: true
     })
   })
@@ -394,6 +401,131 @@ describe('fitness api', () => {
       nextScheduledUnlockCalories: 500,
       nextEffectiveUnlockCalories: 200
     })
+  })
+
+  it('counts a no-borrow streak across multiple completed unlocks and days', async () => {
+    await clearTrackingData()
+
+    await db.insert(calorieEntries).values([
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T14:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T17:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T22:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-17T02:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-17T14:30:00.000Z')
+      }
+    ])
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T18:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      noBorrowUnlockStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.noBorrowUnlockStreak).toBe(5)
+  })
+
+  it('resets the no-borrow streak when the most recent completed slot borrowed', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values({
+      amount: 600,
+      createdAt: new Date('2026-03-17T14:30:00.000Z')
+    })
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T18:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      noBorrowUnlockStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.noBorrowUnlockStreak).toBe(0)
+  })
+
+  it('excludes the current active slot from the no-borrow streak', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values([
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-17T14:30:00.000Z')
+      },
+      {
+        amount: 700,
+        createdAt: new Date('2026-03-17T17:30:00.000Z')
+      }
+    ])
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T18:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      availableCalories: number
+      overdrawCalories: number
+      noBorrowUnlockStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({
+      availableCalories: 0,
+      overdrawCalories: 100,
+      noBorrowUnlockStreak: 1
+    })
+  })
+
+  it('continues the no-borrow streak across the day boundary before the first unlock', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values([
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T14:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T17:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-16T22:30:00.000Z')
+      },
+      {
+        amount: 400,
+        createdAt: new Date('2026-03-17T02:30:00.000Z')
+      }
+    ])
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T13:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      noBorrowUnlockStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.noBorrowUnlockStreak).toBe(4)
   })
 
   it('upserts and deletes weight entries by local date', async () => {
@@ -686,13 +818,15 @@ describe('fitness api', () => {
       amount: number
       lossIn2Weeks: number
       eatenPerDay: number
+      goalWeight: number
     }
 
     expect(response.status).toBe(200)
     expect(body).toEqual({
       amount: 3000,
       lossIn2Weeks: 2,
-      eatenPerDay: 2500
+      eatenPerDay: 2500,
+      goalWeight: 189
     })
   })
 
@@ -707,7 +841,8 @@ describe('fitness api', () => {
     await expect(response.json()).resolves.toEqual({
       amount: 0,
       lossIn2Weeks: 0,
-      eatenPerDay: 0
+      eatenPerDay: 0,
+      goalWeight: 189
     })
   })
 })

@@ -141,6 +141,18 @@ const nextUnlockDetail = computed(() => {
   return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}`
 })
 
+const streakSummary = computed(() => {
+  const status = unlockStatus.value
+
+  if (!status) {
+    return 'Loading streak'
+  }
+
+  const streak = status.noBorrowUnlockStreak
+  const noun = streak === 1 ? 'unlock' : 'unlocks'
+  return `${formatNumber(streak)} clean ${noun}`
+})
+
 const overdrawMessage = computed(() => {
   const status = unlockStatus.value
 
@@ -222,98 +234,110 @@ function formatNumber(value: number) {
 </script>
 
 <template>
-  <div class="calorie-display">
+  <div :class="['calorie-display', isProteinMode ? 'calorie-display--protein' : 'calorie-display--calorie']">
     <template v-if="isProteinMode">
-      <div class="label">Protein Today</div>
-      <div class="value-row">
-        <div
-          v-if="isLoading && !isSubmitting"
-          class="loading-indicator"
-          role="status"
-          :aria-label="loadingLabel"
-        >
-          <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
+      <div class="display-hero">
+        <div class="label">Protein Today</div>
+        <div class="value-row">
+          <div
+            v-if="isLoading && !isSubmitting"
+            class="loading-indicator"
+            role="status"
+            :aria-label="loadingLabel"
+          >
+            <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
+          </div>
+          <div
+            v-else
+            class="value"
+            :class="{ 'value-submitting': isSubmitting }"
+            :style="{ color: accentColor }"
+          >
+            {{ proteinStore.totalProtein.toLocaleString() }}
+          </div>
+          <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+              />
+            </svg>
+          </button>
         </div>
-        <div
-          v-else
-          class="value"
-          :class="{ 'value-submitting': isSubmitting }"
-          :style="{ color: accentColor }"
-        >
-          {{ proteinStore.totalProtein.toLocaleString() }}
-        </div>
-        <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-            />
-          </svg>
-        </button>
       </div>
     </template>
 
     <template v-else>
-      <div class="label">Calories Available Now</div>
-      <div class="value-row">
-        <div
-          v-if="isLoading && !isSubmitting && !unlockStatus"
-          class="loading-indicator"
-          role="status"
-          :aria-label="loadingLabel"
-        >
-          <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
-        </div>
-        <div
-          v-else
-          class="value"
-          :class="{ 'value-submitting': isSubmitting }"
-          :style="{ color: accentColor }"
-        >
-          {{ availableCalories.toLocaleString() }}
-        </div>
-        <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div class="status-grid">
-        <div class="status-card">
-          <div class="status-label">Next Unlock</div>
-          <div class="status-value">{{ nextUnlockSummary }}</div>
-          <div v-if="nextUnlockDetail" class="status-detail">{{ nextUnlockDetail }}</div>
-        </div>
-
-        <div class="status-card">
-          <div class="status-label">Countdown</div>
-          <div class="status-value">
-            {{ countdownLabel ?? (unlockStatus?.allCaloriesUnlockedToday ? 'Done for today' : '--:--:--') }}
+      <div class="display-hero">
+        <div class="label">Calories Available Now</div>
+        <div class="value-row">
+          <div
+            v-if="isLoading && !isSubmitting && !unlockStatus"
+            class="loading-indicator"
+            role="status"
+            :aria-label="loadingLabel"
+          >
+            <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
           </div>
-          <div class="status-detail">Server-paced unlock timer</div>
-        </div>
-
-        <div class="status-card status-card--wide">
-          <div class="status-label">Consumed vs Target</div>
-          <div class="status-value">{{ consumedVsTarget }}</div>
-          <div class="status-detail">
-            {{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far
+          <div
+            v-else
+            class="value"
+            :class="{ 'value-submitting': isSubmitting }"
+            :style="{ color: accentColor }"
+          >
+            {{ availableCalories.toLocaleString() }}
           </div>
+          <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div v-if="overdrawMessage" class="warning-card">
-        {{ overdrawMessage }}
+      <div class="calorie-meta">
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="status-label">Next Unlock</div>
+            <div class="status-value">{{ nextUnlockSummary }}</div>
+            <div v-if="nextUnlockDetail" class="status-detail">{{ nextUnlockDetail }}</div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">Countdown</div>
+            <div class="status-value">
+              {{ countdownLabel ?? (unlockStatus?.allCaloriesUnlockedToday ? 'Done for today' : '--:--:--') }}
+            </div>
+            <div class="status-detail">Server-paced unlock timer</div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">No-Borrow Streak</div>
+            <div class="status-value">{{ streakSummary }}</div>
+            <div class="status-detail">Completed unlock slots across days</div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">Consumed vs Target</div>
+            <div class="status-value">{{ consumedVsTarget }}</div>
+            <div class="status-detail">
+              {{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far
+            </div>
+          </div>
+        </div>
+
+        <div v-if="overdrawMessage" class="warning-card">
+          {{ overdrawMessage }}
+        </div>
       </div>
     </template>
   </div>
@@ -321,13 +345,36 @@ function formatNumber(value: number) {
 
 <style scoped>
 .calorie-display {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md) 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.display-hero {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  min-height: 0;
+  gap: 12px;
+  text-align: center;
+}
+
+.calorie-display--protein {
+  justify-content: center;
+  padding-bottom: var(--spacing-sm);
+}
+
+.calorie-display--calorie {
+  justify-content: stretch;
 }
 
 @media (min-width: 429px) {
@@ -343,16 +390,19 @@ function formatNumber(value: number) {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: 600;
+  text-align: center;
 }
 
 .value-row {
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .value {
-  font-size: 56px;
+  font-size: clamp(40px, 9vw, 56px);
   font-weight: 700;
   line-height: 1;
   transition: opacity 0.2s ease;
@@ -395,24 +445,29 @@ function formatNumber(value: number) {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.calorie-meta {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: var(--spacing-sm);
+}
+
 .status-grid {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-sm);
+  gap: 10px;
 }
 
 .status-card {
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
   border-radius: var(--border-radius);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, white 6%), var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
-}
-
-.status-card--wide {
-  grid-column: 1 / -1;
 }
 
 .status-label {
@@ -420,45 +475,57 @@ function formatNumber(value: number) {
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .status-value {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--color-text);
 }
 
 .status-detail {
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 12px;
   color: var(--color-text-secondary);
 }
 
 .warning-card {
   width: 100%;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: var(--border-radius);
   background: color-mix(in srgb, #f59e0b 18%, transparent);
   border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent);
   color: #fcd34d;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 @media (max-width: 428px) {
-  .value {
-    font-size: 48px;
+  .label {
+    font-size: 13px;
   }
 
-  .status-grid {
-    grid-template-columns: 1fr;
+  .value-row {
+    gap: 8px;
   }
 
-  .status-card--wide {
-    grid-column: auto;
+  .history-button {
+    padding: 10px;
+  }
+
+  .status-card {
+    padding: 9px;
+  }
+
+  .status-value {
+    font-size: 15px;
+  }
+
+  .status-detail {
+    font-size: 11px;
   }
 }
 

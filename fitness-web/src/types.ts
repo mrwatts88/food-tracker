@@ -22,6 +22,7 @@ export interface TDEEResponse {
   amount: number
   lossIn2Weeks: number
   eatenPerDay: number
+  goalWeight: number
 }
 
 export interface UnlockStatus {
@@ -34,6 +35,7 @@ export interface UnlockStatus {
   nextScheduledUnlockCalories: number
   nextEffectiveUnlockCalories: number
   allCaloriesUnlockedToday: boolean
+  noBorrowUnlockStreak: number
   timezone: string
   serverNow: string
 }

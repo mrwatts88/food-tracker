@@ -10,6 +10,7 @@ export const useCalorieStore = defineStore('calorie', () => {
   const tdee = ref<number>(0)
   const lossIn2Weeks = ref<number>(0)
   const eatenPerDay = ref<number | null>(null)
+  const goalWeight = ref<number | null>(null)
   const unlockStatus = ref<UnlockStatus | null>(null)
   const unlockStatusReceivedAt = ref<number>(0)
   const loading = ref(false)
@@ -41,6 +42,8 @@ export const useCalorieStore = defineStore('calorie', () => {
       typeof data.eatenPerDay === 'number' && Number.isFinite(data.eatenPerDay)
         ? data.eatenPerDay
         : null
+    goalWeight.value =
+      typeof data.goalWeight === 'number' && Number.isFinite(data.goalWeight) ? data.goalWeight : null
   }
 
   function applyUnlockStatus(data: UnlockStatus) {
@@ -161,6 +164,7 @@ export const useCalorieStore = defineStore('calorie', () => {
     tdee,
     lossIn2Weeks,
     eatenPerDay,
+    goalWeight,
     unlockStatus,
     unlockStatusReceivedAt,
     loading,

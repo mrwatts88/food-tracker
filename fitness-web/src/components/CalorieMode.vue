@@ -36,27 +36,29 @@ function handleTrackModeChange(trackMode: TrackMode) {
 <template>
   <div class="calorie-mode">
     <template v-if="appStore.inputMode === 'keyboard'">
-      <CalorieDisplay />
-      <div class="track-toggle">
-        <button
-          :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
-          @click="handleTrackModeChange('calorie')"
-        >
-          Calories
-        </button>
-        <button
-          :class="[
-            'track-toggle-button',
-            'track-toggle-button--protein',
-            { active: appStore.trackMode === 'protein' }
-          ]"
-          @click="handleTrackModeChange('protein')"
-        >
-          Protein
-        </button>
+      <div class="display-section">
+        <CalorieDisplay />
+        <div class="track-toggle">
+          <button
+            :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
+            @click="handleTrackModeChange('calorie')"
+          >
+            Calories
+          </button>
+          <button
+            :class="[
+              'track-toggle-button',
+              'track-toggle-button--protein',
+              { active: appStore.trackMode === 'protein' }
+            ]"
+            @click="handleTrackModeChange('protein')"
+          >
+            Protein
+          </button>
+        </div>
       </div>
     </template>
-    <div class="input-section">
+    <div :class="['input-section', { 'input-section--keyboard': appStore.inputMode === 'keyboard' }]">
       <Keyboard
         v-if="appStore.inputMode === 'keyboard'"
         :mode="appStore.trackMode"
@@ -81,12 +83,21 @@ function handleTrackModeChange(trackMode: TrackMode) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+}
+
+.display-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .track-toggle {
   display: flex;
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
+  flex-shrink: 0;
 }
 
 @media (min-width: 429px) {
@@ -129,5 +140,10 @@ function handleTrackModeChange(trackMode: TrackMode) {
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
+  min-height: 0;
+}
+
+.input-section--keyboard {
+  flex-shrink: 0;
 }
 </style>

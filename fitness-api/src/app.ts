@@ -210,7 +210,6 @@ export function createApp(dependencies: AppDependencies = {}) {
       .select()
       .from(weightEntries)
       .orderBy(desc(weightEntries.createdAt))
-      .limit(90)
 
     return c.json(
       entries.map(entry => ({
@@ -435,7 +434,10 @@ export function createApp(dependencies: AppDependencies = {}) {
     const runtime = getRuntime(dependencies)
     const stats = await calculateTdeeStats(runtime.db, runtime.now(), runtime.config.appTimezone)
 
-    return c.json(stats)
+    return c.json({
+      ...stats,
+      goalWeight: runtime.config.goalWeight
+    })
   })
 
   return app

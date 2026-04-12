@@ -66,5 +66,10 @@ Response fields:
 - `nextScheduledUnlockCalories`
 - `nextEffectiveUnlockCalories`
 - `allCaloriesUnlockedToday`
+- `noBorrowUnlockStreak`
 - `timezone`
 - `serverNow`
+
+`GET /api/tdee` also returns:
+
+- `goalWeight`

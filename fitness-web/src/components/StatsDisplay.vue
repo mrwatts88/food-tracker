@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCalorieStore } from '@/stores/calorie'
+import { useWeightStore } from '@/stores/weight'
 import WeightChart from './WeightChart.vue'
 
 const calorieStore = useCalorieStore()
+const weightStore = useWeightStore()
 
 function formatCaloriesPerDay(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -51,6 +53,69 @@ const lossIn2WeeksDisplay = computed(() => {
   }
   return (-value).toFixed(1)
 })
+
+const currentWeight = computed(() => {
+  return weightStore.entries[0]?.amount ?? null
+})
+
+const poundsToGoal = computed(() => {
+  const goalWeight = toFiniteNumber(calorieStore.goalWeight)
+  const current = toFiniteNumber(currentWeight.value)
+
+  if (goalWeight === null || current === null) {
+    return null
+  }
+
+  return Math.max(0, current - goalWeight)
+})
+
+const closestToGoal = computed(() => {
+  const goalWeight = toFiniteNumber(calorieStore.goalWeight)
+
+  if (goalWeight === null || weightStore.entries.length === 0) {
+    return null
+  }
+
+  return weightStore.entries.reduce((closest, entry) => {
+    const distance = Math.max(0, entry.amount - goalWeight)
+
+    if (closest === null) {
+      return distance
+    }
+
+    return Math.min(closest, distance)
+  }, null as number | null)
+})
+
+const goalWeightDisplay = computed(() => {
+  const value = toFiniteNumber(calorieStore.goalWeight)
+
+  if (value === null) {
+    return '-'
+  }
+
+  return value.toFixed(1)
+})
+
+const poundsToGoalDisplay = computed(() => {
+  const value = poundsToGoal.value
+
+  if (value === null) {
+    return '-'
+  }
+
+  return `${value.toFixed(1)} lb to go`
+})
+
+const closestToGoalDisplay = computed(() => {
+  const value = closestToGoal.value
+
+  if (value === null) {
+    return 'closest: -'
+  }
+
+  return `closest: ${value.toFixed(1)} lb`
+})
 </script>
 
 <template>
@@ -68,6 +133,12 @@ const lossIn2WeeksDisplay = computed(() => {
         <div class="label">Change in 2wk</div>
         <div class="value" :class="isGaining ? 'warning' : 'success'">{{ lossIn2WeeksDisplay }}</div>
       </div>
+    </div>
+    <div class="goal-progress-card">
+      <div class="goal-progress-label">Goal Weight</div>
+      <div class="goal-progress-value">{{ poundsToGoalDisplay }}</div>
+      <div class="goal-progress-detail">{{ closestToGoalDisplay }}</div>
+      <div class="goal-progress-target">target {{ goalWeightDisplay }} lb</div>
     </div>
     <WeightChart :gaining="isGaining" />
   </div>
@@ -91,6 +162,44 @@ const lossIn2WeeksDisplay = computed(() => {
   justify-content: center;
   gap: var(--spacing-lg);
   width: 100%;
+}
+
+.goal-progress-card {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--border-radius);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-weight-primary) 18%, transparent), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-weight-primary) 38%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.goal-progress-label,
+.goal-progress-target {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.goal-progress-value {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-weight-primary);
+  text-align: center;
+}
+
+.goal-progress-detail {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
 }
 
 .stats-item {
@@ -143,6 +252,10 @@ const lossIn2WeeksDisplay = computed(() => {
 @media (max-width: 360px) {
   .value {
     font-size: 28px;
+  }
+
+  .goal-progress-value {
+    font-size: 24px;
   }
 
   .label {
