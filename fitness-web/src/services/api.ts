@@ -4,6 +4,7 @@ import type {
   ProteinEntry,
   QuickAddFood,
   TDEEResponse,
+  UnlockStatus,
   WeightEntry
 } from '@/types'
 
@@ -26,6 +27,7 @@ export interface QuickAddConsumeResponse {
 // Calorie API
 export const calorieApi = {
   getEntries: () => api.get<CalorieEntry[]>('/calories'),
+  getUnlockStatus: () => api.get<UnlockStatus>('/calories/unlock-status'),
   addEntry: (amount: number) => api.post<CalorieEntry>('/calories', { amount }),
   deleteEntry: (id: number) => api.delete(`/calories/${id}`)
 }

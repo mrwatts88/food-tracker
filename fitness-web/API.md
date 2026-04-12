@@ -38,6 +38,7 @@ Shared response/request types live in:
 
 - `GET /api/health`
 - `GET /api/calories`
+- `GET /api/calories/unlock-status`
 - `POST /api/calories`
 - `DELETE /api/calories/:id`
 - `GET /api/weight`
@@ -49,3 +50,21 @@ Shared response/request types live in:
 - `PUT /api/quickadd/:id`
 - `DELETE /api/quickadd/:id`
 - `POST /api/quickadd/:id/consume`
+
+## Calorie Unlock Status
+
+`GET /api/calories/unlock-status` returns the current unlock pacing snapshot for the calorie screen.
+
+Response fields:
+
+- `dailyTargetCalories`
+- `consumedCalories`
+- `unlockedCalories`
+- `availableCalories`
+- `overdrawCalories`
+- `nextUnlockAt`
+- `nextScheduledUnlockCalories`
+- `nextEffectiveUnlockCalories`
+- `allCaloriesUnlockedToday`
+- `timezone`
+- `serverNow`

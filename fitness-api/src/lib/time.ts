@@ -54,6 +54,10 @@ export function formatDate(value: Date | string, timezone: string) {
   return normalizeDateTime(value).setZone(timezone).toFormat('yyyy-LL-dd')
 }
 
+export function toZonedIso(value: Date | string, timezone: string) {
+  return normalizeDateTime(value).setZone(timezone).toISO() ?? ''
+}
+
 function normalizeDateTime(value: Date | string) {
   if (value instanceof Date) {
     return DateTime.fromJSDate(value)

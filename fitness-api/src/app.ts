@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
+import { asc, desc, eq, gte } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { z } from 'zod'
@@ -6,7 +6,9 @@ import { z } from 'zod'
 import { loadConfig, type AppConfig } from './config'
 import { getDatabase, type Database } from './db/client'
 import { calorieEntries, proteinEntries, quickAddFoods, weightEntries } from './db/schema'
-import { formatDate, formatTimestamp, getDateRange, getDateRangeStrings, getTodayBounds } from './lib/time'
+import { calculateUnlockStatus } from './lib/calorie-unlock'
+import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
+import { calculateTdeeStats } from './lib/tdee'
 
 type AppDependencies = {
   db?: Database
@@ -101,6 +103,20 @@ export function createApp(dependencies: AppDependencies = {}) {
         createdAt: formatTimestamp(entry.createdAt, runtime.config.appTimezone)
       }))
     )
+  })
+
+  app.get('/calories/unlock-status', async c => {
+    const runtime = getRuntime(dependencies)
+
+    const unlockStatus = await calculateUnlockStatus({
+      db: runtime.db,
+      now: runtime.now(),
+      timezone: runtime.config.appTimezone,
+      schedule: runtime.config.calorieUnlockSchedule,
+      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+    })
+
+    return c.json(unlockStatus)
   })
 
   app.post('/calories', async c => {
@@ -417,82 +433,15 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.get('/tdee', async c => {
     const runtime = getRuntime(dependencies)
-    const now = runtime.now()
-    const timezone = runtime.config.appTimezone
+    const stats = await calculateTdeeStats(runtime.db, runtime.now(), runtime.config.appTimezone)
 
-    const calorieRange = getDateRange(now, timezone, 28, 1)
-    const recentWeightRange = getDateRangeStrings(now, timezone, 13, 0)
-    const previousWeightRange = getDateRangeStrings(now, timezone, 27, 14)
-
-    const calories = await runtime.db
-      .select({
-        amount: calorieEntries.amount
-      })
-      .from(calorieEntries)
-      .where(
-        and(
-          gte(calorieEntries.createdAt, calorieRange.startUtc),
-          lte(calorieEntries.createdAt, calorieRange.endUtc)
-        )
-      )
-
-    const recentWeights = await runtime.db
-      .select({
-        amount: weightEntries.amount
-      })
-      .from(weightEntries)
-      .where(
-        and(
-          gte(weightEntries.createdAt, recentWeightRange.startDate),
-          lte(weightEntries.createdAt, recentWeightRange.endDate)
-        )
-      )
-
-    const previousWeights = await runtime.db
-      .select({
-        amount: weightEntries.amount
-      })
-      .from(weightEntries)
-      .where(
-        and(
-          gte(weightEntries.createdAt, previousWeightRange.startDate),
-          lte(weightEntries.createdAt, previousWeightRange.endDate)
-        )
-      )
-
-    const totalCalories = calories.reduce((sum, entry) => sum + entry.amount, 0)
-    const eatenPerDay = totalCalories / 28
-
-    if (recentWeights.length === 0 || previousWeights.length === 0) {
-      return c.json({
-        amount: 0,
-        lossIn2Weeks: 0,
-        eatenPerDay
-      })
-    }
-
-    const recentAverage = average(recentWeights.map(entry => entry.amount))
-    const previousAverage = average(previousWeights.map(entry => entry.amount))
-    const lossIn2Weeks = previousAverage - recentAverage
-    const foodCaloriesBurned = totalCalories / 2
-    const fatCaloriesBurned = lossIn2Weeks * 3500
-    const tdee = Math.round((foodCaloriesBurned + fatCaloriesBurned) / 14)
-
-    return c.json({
-      amount: Number.isFinite(tdee) ? tdee : 0,
-      lossIn2Weeks: Number.isFinite(lossIn2Weeks) ? lossIn2Weeks : 0,
-      eatenPerDay: Number.isFinite(eatenPerDay) ? eatenPerDay : 0
-    })
+    return c.json(stats)
   })
 
   return app
 }
 
 export const app = createApp()
-
-function average(values: number[]) {
-  return values.reduce((sum, value) => sum + value, 0) / values.length
-}
 
 function parsePositiveInteger(value: string, field: string) {
   const parsed = Number.parseInt(value, 10)

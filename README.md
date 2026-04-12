@@ -46,6 +46,8 @@ cp fitness-api/.env.example fitness-api/.env
 ```env
 DATABASE_URL=postgresql://...
 APP_TIMEZONE=America/Chicago
+CALORIE_UNLOCK_SCHEDULE=09:00=0.25,12:00=0.25,17:00=0.25,21:00=0.25
+CALORIE_UNLOCK_FALLBACK_GOAL=2000
 PORT=3000
 CORS_ORIGIN=http://localhost:5173
 ```
@@ -179,6 +181,8 @@ Production uses:
 
 Usually you do not need:
 
+- `CALORIE_UNLOCK_SCHEDULE`
+- `CALORIE_UNLOCK_FALLBACK_GOAL`
 - `VITE_API_BASE_URL`
 - `CORS_ORIGIN`
 

@@ -1,8 +1,6 @@
 export type Mode = 'calorie' | 'weight' | 'stats'
 export type TrackMode = 'calorie' | 'protein'
 
-export type DisplayMode = 'consumed' | 'remaining' | 'goal'
-
 export interface CalorieEntry {
   id: number
   amount: number
@@ -24,6 +22,20 @@ export interface TDEEResponse {
   amount: number
   lossIn2Weeks: number
   eatenPerDay: number
+}
+
+export interface UnlockStatus {
+  dailyTargetCalories: number
+  consumedCalories: number
+  unlockedCalories: number
+  availableCalories: number
+  overdrawCalories: number
+  nextUnlockAt: string | null
+  nextScheduledUnlockCalories: number
+  nextEffectiveUnlockCalories: number
+  allCaloriesUnlockedToday: boolean
+  timezone: string
+  serverNow: string
 }
 
 export interface QuickAddFood {

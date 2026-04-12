@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { CalorieEntry, TDEEResponse } from '@/types'
+import type { CalorieEntry, TDEEResponse, UnlockStatus } from '@/types'
 import { calorieApi, tdeeApi } from '@/services/api'
 
 const CALORIE_DEFICIT = 250
@@ -10,6 +10,8 @@ export const useCalorieStore = defineStore('calorie', () => {
   const tdee = ref<number>(0)
   const lossIn2Weeks = ref<number>(0)
   const eatenPerDay = ref<number | null>(null)
+  const unlockStatus = ref<UnlockStatus | null>(null)
+  const unlockStatusReceivedAt = ref<number>(0)
   const loading = ref(false)
   const submittingEntry = ref(false)
 
@@ -17,12 +19,16 @@ export const useCalorieStore = defineStore('calorie', () => {
     return entries.value.reduce((sum, entry) => sum + entry.amount, 0)
   })
 
+  const effectiveDailyTarget = computed(() => {
+    return unlockStatus.value?.dailyTargetCalories ?? calorieGoal.value
+  })
+
   const calorieGoal = computed(() => {
     return tdee.value - CALORIE_DEFICIT
   })
 
   const remainingCalories = computed(() => {
-    return calorieGoal.value - totalCalories.value
+    return effectiveDailyTarget.value - totalCalories.value
   })
 
   function applyTdeeData(data: TDEEResponse) {
@@ -37,11 +43,20 @@ export const useCalorieStore = defineStore('calorie', () => {
         : null
   }
 
+  function applyUnlockStatus(data: UnlockStatus) {
+    unlockStatus.value = data
+    unlockStatusReceivedAt.value = Date.now()
+  }
+
   async function fetchEntries() {
     try {
       loading.value = true
-      const response = await calorieApi.getEntries()
-      entries.value = response.data
+      const [entriesResponse, unlockStatusResponse] = await Promise.all([
+        calorieApi.getEntries(),
+        calorieApi.getUnlockStatus()
+      ])
+      entries.value = entriesResponse.data
+      applyUnlockStatus(unlockStatusResponse.data)
     } catch (error) {
       console.error('Failed to fetch calorie entries:', error)
     } finally {
@@ -58,6 +73,25 @@ export const useCalorieStore = defineStore('calorie', () => {
     }
   }
 
+  async function fetchUnlockStatus(options: { setLoading?: boolean } = {}) {
+    const { setLoading = false } = options
+
+    try {
+      if (setLoading) {
+        loading.value = true
+      }
+
+      const response = await calorieApi.getUnlockStatus()
+      applyUnlockStatus(response.data)
+    } catch (error) {
+      console.error('Failed to fetch calorie unlock status:', error)
+    } finally {
+      if (setLoading) {
+        loading.value = false
+      }
+    }
+  }
+
   async function refreshData(options: { setLoading?: boolean } = {}) {
     const { setLoading = true } = options
 
@@ -66,9 +100,10 @@ export const useCalorieStore = defineStore('calorie', () => {
         loading.value = true
       }
 
-      const [entriesResult, tdeeResult] = await Promise.allSettled([
+      const [entriesResult, tdeeResult, unlockStatusResult] = await Promise.allSettled([
         calorieApi.getEntries(),
-        tdeeApi.getTDEE()
+        tdeeApi.getTDEE(),
+        calorieApi.getUnlockStatus()
       ])
 
       if (entriesResult.status === 'fulfilled') {
@@ -81,6 +116,12 @@ export const useCalorieStore = defineStore('calorie', () => {
         applyTdeeData(tdeeResult.value.data)
       } else {
         console.error('Failed to refresh TDEE data:', tdeeResult.reason)
+      }
+
+      if (unlockStatusResult.status === 'fulfilled') {
+        applyUnlockStatus(unlockStatusResult.value.data)
+      } else {
+        console.error('Failed to refresh calorie unlock status:', unlockStatusResult.reason)
       }
     } catch (error) {
       console.error('Failed to refresh calorie data:', error)
@@ -120,13 +161,17 @@ export const useCalorieStore = defineStore('calorie', () => {
     tdee,
     lossIn2Weeks,
     eatenPerDay,
+    unlockStatus,
+    unlockStatusReceivedAt,
     loading,
     submittingEntry,
     totalCalories,
+    effectiveDailyTarget,
     calorieGoal,
     remainingCalories,
     fetchEntries,
     fetchTDEE,
+    fetchUnlockStatus,
     refreshData,
     addEntry,
     deleteEntry

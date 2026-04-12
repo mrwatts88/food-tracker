@@ -6,6 +6,10 @@ dotenv.config()
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   APP_TIMEZONE: z.string().default('America/Chicago'),
+  CALORIE_UNLOCK_SCHEDULE: z
+    .string()
+    .default('09:00=0.25,12:00=0.25,17:00=0.25,21:00=0.25'),
+  CALORIE_UNLOCK_FALLBACK_GOAL: z.coerce.number().int().positive().default(2000),
   CORS_ORIGIN: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(3000)
 })
@@ -13,6 +17,8 @@ const envSchema = z.object({
 export type AppConfig = {
   databaseUrl?: string
   appTimezone: string
+  calorieUnlockSchedule: string
+  calorieUnlockFallbackGoal: number
   corsOrigin?: string
   port: number
 }
@@ -23,6 +29,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     databaseUrl: parsed.DATABASE_URL,
     appTimezone: parsed.APP_TIMEZONE,
+    calorieUnlockSchedule: parsed.CALORIE_UNLOCK_SCHEDULE,
+    calorieUnlockFallbackGoal: parsed.CALORIE_UNLOCK_FALLBACK_GOAL,
     corsOrigin: parsed.CORS_ORIGIN,
     port: parsed.PORT
   }
