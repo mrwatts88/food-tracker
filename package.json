@@ -18,7 +18,8 @@
     "test": "npm run test --workspace fitness-api",
     "db:generate": "npm run db:generate --workspace fitness-api",
     "db:migrate": "npm run db:migrate --workspace fitness-api",
-    "db:seed": "npm run db:seed --workspace fitness-api"
+    "db:seed": "npm run db:seed --workspace fitness-api",
+    "db:set-baseline": "npm run db:set-baseline --workspace fitness-api"
   },
   "devDependencies": {
     "npm-run-all2": "^8.0.4"

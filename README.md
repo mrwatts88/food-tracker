@@ -91,6 +91,27 @@ This applies SQL files in `fitness-api/drizzle/` to the database in `DATABASE_UR
 npm run db:seed
 ```
 
+### Reset a recent baseline window
+
+If you want to normalize the recent trend data used by TDEE and unlock calculations, run:
+
+```bash
+npm run db:set-baseline -- --days 30 --weight 205 --calories 2500
+```
+
+Notes:
+
+- This uses `DATABASE_URL` from `fitness-api/.env`
+- The window ends on today in `APP_TIMEZONE` unless you pass `--end-date YYYY-MM-DD`
+- Weight entries in the window are upserted to the fixed weight
+- Calorie entries in the window are replaced with one fixed calorie entry per day at local noon
+
+Example for a future reset once your scale is back:
+
+```bash
+npm run db:set-baseline -- --days 30 --weight 198.4 --calories 2400
+```
+
 ### Change the schema
 
 When changing the database shape:
