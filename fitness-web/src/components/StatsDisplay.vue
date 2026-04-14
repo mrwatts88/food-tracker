@@ -104,7 +104,7 @@ const poundsToGoalDisplay = computed(() => {
     return '-'
   }
 
-  return `${value.toFixed(1)} lb to go`
+  return `${value.toFixed(1)} lb`
 })
 
 const closestToGoalDisplay = computed(() => {
@@ -120,27 +120,39 @@ const closestToGoalDisplay = computed(() => {
 
 <template>
   <div class="stats-display">
-    <div class="stats-row">
-      <div class="stats-item">
-        <div class="label">Eaten / Day</div>
-        <div class="value" :class="isOvereating ? 'warning' : 'success'">{{ averageEatenDisplay }}</div>
+    <div class="stats-grid">
+      <div class="stats-card">
+        <div class="stats-card-label">Eaten / Day</div>
+        <div class="stats-card-content">
+          <div class="stats-card-value" :class="isOvereating ? 'warning' : 'success'">
+            {{ averageEatenDisplay }}
+          </div>
+        </div>
       </div>
-      <div class="stats-item">
-        <div class="label">Burned / Day</div>
-        <div class="value burned">{{ averageBurnedDisplay }}</div>
+      <div class="stats-card">
+        <div class="stats-card-label">Burned / Day</div>
+        <div class="stats-card-content">
+          <div class="stats-card-value burned">{{ averageBurnedDisplay }}</div>
+        </div>
       </div>
-      <div class="stats-item">
-        <div class="label">Change in 2wk</div>
-        <div class="value" :class="isGaining ? 'warning' : 'success'">{{ lossIn2WeeksDisplay }}</div>
+      <div class="stats-card stats-card--goal">
+        <div class="stats-card-label">Until Goal</div>
+        <div class="stats-card-content">
+          <div class="stats-card-value weight">{{ poundsToGoalDisplay }}</div>
+          <div class="stats-card-detail">{{ closestToGoalDisplay }}</div>
+          <div class="stats-card-detail stats-card-detail--target">target {{ goalWeightDisplay }} lb</div>
+        </div>
+      </div>
+      <div class="stats-card">
+        <div class="stats-card-label">Change in 2wk</div>
+        <div class="stats-card-content">
+          <div class="stats-card-value" :class="isGaining ? 'warning' : 'success'">{{ lossIn2WeeksDisplay }}</div>
+        </div>
       </div>
     </div>
-    <div class="goal-progress-card">
-      <div class="goal-progress-label">Goal Weight</div>
-      <div class="goal-progress-value">{{ poundsToGoalDisplay }}</div>
-      <div class="goal-progress-detail">{{ closestToGoalDisplay }}</div>
-      <div class="goal-progress-target">target {{ goalWeightDisplay }} lb</div>
+    <div class="stats-chart">
+      <WeightChart :gaining="isGaining" />
     </div>
-    <WeightChart :gaining="isGaining" />
   </div>
 </template>
 
@@ -150,93 +162,94 @@ const closestToGoalDisplay = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 48px;
-  padding: var(--spacing-lg) var(--spacing-md);
+  justify-content: flex-start;
+  gap: 18px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-lg);
   min-height: 0;
   overflow-y: auto;
 }
 
-.stats-row {
+.stats-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stats-card {
+  min-width: 0;
+  min-height: 132px;
+  padding: 16px 14px;
+  border-radius: var(--border-radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, white 6%), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
   display: flex;
-  justify-content: center;
-  gap: var(--spacing-lg);
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
 }
 
-.goal-progress-card {
-  width: 100%;
-  padding: 16px 18px;
-  border-radius: var(--border-radius);
+.stats-card--goal {
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--color-weight-primary) 18%, transparent), var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-weight-primary) 38%, transparent);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
 }
 
-.goal-progress-label,
-.goal-progress-target {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.goal-progress-value {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.1;
-  color: var(--color-weight-primary);
-  text-align: center;
-}
-
-.goal-progress-detail {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-  text-align: center;
-}
-
-.stats-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.label {
+.stats-card-label {
   font-size: 11px;
   color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-sm);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   font-weight: 600;
-  text-align: center;
+  text-align: left;
   white-space: nowrap;
 }
 
-.value {
-  font-size: 36px;
-  font-weight: 700;
-  line-height: 1;
+.stats-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
 }
 
-.value.success {
+.stats-card-detail {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}
+
+.stats-card-detail--target {
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 600;
+}
+
+.stats-card-value {
+  font-size: clamp(24px, 5.2vw, 36px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.stats-card-value.success {
   color: var(--color-calorie-primary);
 }
 
-.value.warning {
+.stats-card-value.warning {
   color: #dc2626;
 }
 
-.value.burned {
+.stats-card-value.burned,
+.stats-card-value.weight {
   color: var(--color-weight-primary);
+}
+
+.stats-chart {
+  width: 100%;
+  margin-top: 24px;
 }
 
 @media (min-width: 429px) {
@@ -250,20 +263,21 @@ const closestToGoalDisplay = computed(() => {
 }
 
 @media (max-width: 360px) {
-  .value {
-    font-size: 28px;
+  .stats-card {
+    padding: 12px;
+    min-height: 120px;
   }
 
-  .goal-progress-value {
-    font-size: 24px;
-  }
-
-  .label {
+  .stats-card-label {
     font-size: 10px;
   }
 
-  .stats-row {
-    gap: var(--spacing-md);
+  .stats-card-value {
+    font-size: clamp(20px, 5.6vw, 28px);
+  }
+
+  .stats-card-detail {
+    font-size: 11px;
   }
 }
 </style>
