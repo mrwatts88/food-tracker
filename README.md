@@ -96,7 +96,7 @@ npm run db:seed
 If you want to normalize the recent trend data used by TDEE and unlock calculations, run:
 
 ```bash
-npm run db:set-baseline -- --days 30 --weight 205 --calories 2500
+npm run db:set-baseline --workspace fitness-api -- --days 30 --weight 205 --calories 2500
 ```
 
 Notes:
@@ -109,7 +109,7 @@ Notes:
 Example for a future reset once your scale is back:
 
 ```bash
-npm run db:set-baseline -- --days 30 --weight 198.4 --calories 2400
+npm run db:set-baseline --workspace fitness-api -- --days 30 --weight 198.4 --calories 2400
 ```
 
 ### Change the schema
