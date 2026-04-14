@@ -39,16 +39,3 @@ export interface UnlockStatus {
   timezone: string
   serverNow: string
 }
-
-export interface QuickAddFood {
-  id: number
-  name: string
-  unit: string
-  amount: number
-  calories: number
-  fatGrams: number
-  carbsGrams: number
-  proteinGrams: number
-  sugarGrams: number
-  createdAt: string
-}

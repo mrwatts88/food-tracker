@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { createApp } from './app'
 import type { AppConfig } from './config'
 import { readMigrationFiles } from './db/run-migrations'
-import { calorieEntries, proteinEntries, quickAddFoods, schema, weightEntries } from './db/schema'
+import { calorieEntries, proteinEntries, schema, weightEntries } from './db/schema'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -49,7 +49,6 @@ async function clearTrackingData() {
   await db.delete(calorieEntries)
   await db.delete(proteinEntries)
   await db.delete(weightEntries)
-  await db.delete(quickAddFoods)
 }
 
 async function seedTdeeFixture() {
@@ -612,202 +611,6 @@ describe('fitness api', () => {
     })
 
     expect(response.status).toBe(200)
-  })
-
-  it('creates, updates, consumes, and deletes quick add foods', async () => {
-    const createResponse = await app.request('/api/quickadd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Greek Yogurt',
-        unit: 'cup',
-        amount: 1,
-        calories: 120,
-        fatGrams: 0,
-        carbsGrams: 8,
-        proteinGrams: 20,
-        sugarGrams: 6
-      })
-    })
-
-    expect(createResponse.status).toBe(201)
-
-    const createdFood = (await createResponse.json()) as {
-      id: number
-      name: string
-      createdAt: string
-    }
-    expect(createdFood).toMatchObject({
-      name: 'Greek Yogurt',
-      createdAt: '2026-03-17 12:00:00'
-    })
-
-    const updateResponse = await app.request(`/api/quickadd/${createdFood.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Greek Yogurt',
-        unit: 'cup',
-        amount: 1,
-        calories: 140,
-        fatGrams: 1,
-        carbsGrams: 9,
-        proteinGrams: 21,
-        sugarGrams: 7
-      })
-    })
-
-    expect(updateResponse.status).toBe(200)
-
-    const consumeResponse = await app.request(`/api/quickadd/${createdFood.id}/consume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ multiplier: 2 })
-    })
-
-    expect(consumeResponse.status).toBe(201)
-    await expect(consumeResponse.json()).resolves.toMatchObject({
-      calorieEntry: {
-        amount: 280
-      },
-      proteinEntry: {
-        amount: 42
-      }
-    })
-
-    const listResponse = await app.request('/api/quickadd')
-    const foods = (await listResponse.json()) as Array<{ id: number }>
-    expect(foods).toHaveLength(1)
-
-    const deleteResponse = await app.request(`/api/quickadd/${createdFood.id}`, {
-      method: 'DELETE'
-    })
-
-    expect(deleteResponse.status).toBe(200)
-  })
-
-  it('treats deleting a missing quick add food as a success', async () => {
-    const response = await app.request('/api/quickadd/999999', {
-      method: 'DELETE'
-    })
-
-    expect(response.status).toBe(200)
-  })
-
-  it('creates only a protein entry when a quick add food has zero calories', async () => {
-    await db.delete(calorieEntries)
-    await db.delete(proteinEntries)
-    await db.delete(quickAddFoods)
-
-    const createResponse = await app.request('/api/quickadd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Chicken Breast',
-        unit: 'serving',
-        amount: 1,
-        calories: 0,
-        fatGrams: 4,
-        carbsGrams: 0,
-        proteinGrams: 26.4,
-        sugarGrams: 0
-      })
-    })
-
-    const createdFood = (await createResponse.json()) as { id: number }
-
-    const consumeResponse = await app.request(`/api/quickadd/${createdFood.id}/consume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ multiplier: 2 })
-    })
-
-    expect(consumeResponse.status).toBe(201)
-    await expect(consumeResponse.json()).resolves.toMatchObject({
-      calorieEntry: null,
-      proteinEntry: {
-        amount: 53
-      }
-    })
-
-    const proteinListResponse = await app.request('/api/protein')
-    const proteinList = (await proteinListResponse.json()) as Array<{ amount: number }>
-
-    expect(proteinListResponse.status).toBe(200)
-    expect(proteinList).toHaveLength(1)
-    expect(proteinList[0]).toMatchObject({ amount: 53 })
-  })
-
-  it('creates only a calorie entry when a quick add food has zero protein', async () => {
-    await db.delete(calorieEntries)
-    await db.delete(proteinEntries)
-    await db.delete(quickAddFoods)
-
-    const createResponse = await app.request('/api/quickadd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Fruit Snacks',
-        unit: 'pack',
-        amount: 1,
-        calories: 90,
-        fatGrams: 0,
-        carbsGrams: 22,
-        proteinGrams: 0,
-        sugarGrams: 12
-      })
-    })
-
-    const createdFood = (await createResponse.json()) as { id: number }
-
-    const consumeResponse = await app.request(`/api/quickadd/${createdFood.id}/consume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ multiplier: 2 })
-    })
-
-    expect(consumeResponse.status).toBe(201)
-    await expect(consumeResponse.json()).resolves.toMatchObject({
-      calorieEntry: {
-        amount: 180
-      },
-      proteinEntry: null
-    })
-  })
-
-  it('creates no entries when a quick add food has zero calories and zero protein', async () => {
-    await db.delete(calorieEntries)
-    await db.delete(proteinEntries)
-    await db.delete(quickAddFoods)
-
-    const createResponse = await app.request('/api/quickadd', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Zero Everything',
-        unit: 'serving',
-        amount: 1,
-        calories: 0,
-        fatGrams: 0,
-        carbsGrams: 0,
-        proteinGrams: 0,
-        sugarGrams: 0
-      })
-    })
-
-    const createdFood = (await createResponse.json()) as { id: number }
-
-    const consumeResponse = await app.request(`/api/quickadd/${createdFood.id}/consume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ multiplier: 3 })
-    })
-
-    expect(consumeResponse.status).toBe(201)
-    await expect(consumeResponse.json()).resolves.toEqual({
-      calorieEntry: null,
-      proteinEntry: null
-    })
   })
 
   it('calculates TDEE from the rolling calorie and weight windows', async () => {

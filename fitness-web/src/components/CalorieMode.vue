@@ -2,17 +2,13 @@
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useProteinStore } from '@/stores/protein'
-import { useQuickAddStore } from '@/stores/quickadd'
 import type { TrackMode } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
-import QuickAddList from './QuickAddList.vue'
-import QuickAddDisplay from './QuickAddDisplay.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
 const proteinStore = useProteinStore()
-const quickAddStore = useQuickAddStore()
 
 async function handleSubmit(amount: number) {
   if (appStore.trackMode === 'protein') {
@@ -28,39 +24,35 @@ function handleTrackModeChange(trackMode: TrackMode) {
     return
   }
 
-  quickAddStore.clearTaps()
   appStore.setTrackMode(trackMode)
 }
 </script>
 
 <template>
   <div class="calorie-mode">
-    <template v-if="appStore.inputMode === 'keyboard'">
-      <div class="display-section">
-        <CalorieDisplay />
-        <div class="track-toggle">
-          <button
-            :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
-            @click="handleTrackModeChange('calorie')"
-          >
-            Calories
-          </button>
-          <button
-            :class="[
-              'track-toggle-button',
-              'track-toggle-button--protein',
-              { active: appStore.trackMode === 'protein' }
-            ]"
-            @click="handleTrackModeChange('protein')"
-          >
-            Protein
-          </button>
-        </div>
+    <div class="display-section">
+      <CalorieDisplay />
+      <div class="track-toggle">
+        <button
+          :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
+          @click="handleTrackModeChange('calorie')"
+        >
+          Calories
+        </button>
+        <button
+          :class="[
+            'track-toggle-button',
+            'track-toggle-button--protein',
+            { active: appStore.trackMode === 'protein' }
+          ]"
+          @click="handleTrackModeChange('protein')"
+        >
+          Protein
+        </button>
       </div>
-    </template>
-    <div :class="['input-section', { 'input-section--keyboard': appStore.inputMode === 'keyboard' }]">
+    </div>
+    <div class="input-section">
       <Keyboard
-        v-if="appStore.inputMode === 'keyboard'"
         :mode="appStore.trackMode"
         :submitting="
           appStore.trackMode === 'protein'
@@ -69,10 +61,6 @@ function handleTrackModeChange(trackMode: TrackMode) {
         "
         @submit="handleSubmit"
       />
-      <template v-else>
-        <QuickAddList />
-        <QuickAddDisplay />
-      </template>
     </div>
   </div>
 </template>
@@ -143,7 +131,4 @@ function handleTrackModeChange(trackMode: TrackMode) {
   min-height: 0;
 }
 
-.input-section--keyboard {
-  flex-shrink: 0;
-}
 </style>

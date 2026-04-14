@@ -45,11 +45,6 @@ Shared response/request types live in:
 - `POST /api/weight`
 - `DELETE /api/weight/:date`
 - `GET /api/tdee`
-- `GET /api/quickadd`
-- `POST /api/quickadd`
-- `PUT /api/quickadd/:id`
-- `DELETE /api/quickadd/:id`
-- `POST /api/quickadd/:id/consume`
 
 ## Calorie Unlock Status
 

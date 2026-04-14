@@ -1,12 +1,5 @@
 import axios from 'axios'
-import type {
-  CalorieEntry,
-  ProteinEntry,
-  QuickAddFood,
-  TDEEResponse,
-  UnlockStatus,
-  WeightEntry
-} from '@/types'
+import type { CalorieEntry, ProteinEntry, TDEEResponse, UnlockStatus, WeightEntry } from '@/types'
 
 const apiBaseUrl = import.meta.env.DEV
   ? import.meta.env.VITE_API_BASE_URL || '/api'
@@ -18,11 +11,6 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 })
-
-export interface QuickAddConsumeResponse {
-  calorieEntry: CalorieEntry | null
-  proteinEntry: ProteinEntry | null
-}
 
 // Calorie API
 export const calorieApi = {
@@ -49,17 +37,4 @@ export const weightApi = {
 // TDEE API
 export const tdeeApi = {
   getTDEE: () => api.get<TDEEResponse>('/tdee')
-}
-
-// Quick Add API
-export const quickAddApi = {
-  getFoods: () => api.get<QuickAddFood[]>('/quickadd'),
-  createFood: (food: Omit<QuickAddFood, 'id' | 'createdAt'>) => api.post('/quickadd', food),
-  updateFood: (id: number, food: Omit<QuickAddFood, 'id' | 'createdAt'>) => api.put(`/quickadd/${id}`, food),
-  deleteFood: (id: number) => api.delete(`/quickadd/${id}`),
-  consumeFood: (id: number, multiplier: number, target?: 'calorie' | 'protein') =>
-    api.post<QuickAddConsumeResponse>(`/quickadd/${id}/consume`, {
-      multiplier,
-      ...(target ? { target } : {})
-    })
 }

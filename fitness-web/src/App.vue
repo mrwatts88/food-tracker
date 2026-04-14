@@ -1,33 +1,29 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useProteinStore } from '@/stores/protein'
 import { useWeightStore } from '@/stores/weight'
-import { useQuickAddStore } from '@/stores/quickadd'
 import ModeToggle from '@/components/ModeToggle.vue'
 import CalorieMode from '@/components/CalorieMode.vue'
 import WeightMode from '@/components/WeightMode.vue'
 import EntryDrawer from '@/components/EntryDrawer.vue'
-import StatsMode from './components/StatsMode.vue';
-import QuickAddConfig from './components/QuickAddConfig.vue';
+import StatsMode from './components/StatsMode.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
 const proteinStore = useProteinStore()
 const weightStore = useWeightStore()
-const quickAddStore = useQuickAddStore()
 
 onMounted(async () => {
   await Promise.all([
     calorieStore.refreshData(),
     proteinStore.refreshData(),
-    weightStore.fetchEntries(),
-    quickAddStore.fetchFoods()
+    weightStore.fetchEntries()
   ])
 
   if (!weightStore.todayWeight) {
-    appStore.setMode("weight");
+    appStore.setMode('weight')
   }
 })
 </script>
@@ -40,7 +36,6 @@ onMounted(async () => {
     <StatsMode v-if="appStore.mode === 'stats'" />
     <EntryDrawer />
   </div>
-  <QuickAddConfig class="config-panel" />
 </template>
 
 <style>
@@ -86,13 +81,7 @@ body {
   justify-content: center;
   align-items: center;
   background: var(--color-background);
-  gap: 0;
 }
-
-.config-panel {
-  display: none;
-}
-
 
 .app-container {
   width: 100%;
@@ -118,14 +107,6 @@ body {
 }
 
 @media (min-width: 900px) {
-  .config-panel {
-    display: flex;
-    height: calc(100vh - 32px);
-    max-height: 844px;
-    border-radius: var(--border-radius);
-    margin-left: var(--spacing-md);
-  }
-
   .app-container {
     border-radius: var(--border-radius);
   }

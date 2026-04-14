@@ -1,7 +1,7 @@
 import { loadConfig } from './config'
 import { createPool, createDatabase } from './db/client'
 import { runMigrations } from './db/run-migrations'
-import { calorieEntries, quickAddFoods, weightEntries } from './db/schema'
+import { calorieEntries, weightEntries } from './db/schema'
 
 async function main() {
   const config = loadConfig()
@@ -41,18 +41,6 @@ async function main() {
         createdAt: date
       })
     }
-
-    await db.insert(quickAddFoods).values({
-      name: 'Protein Shake',
-      unit: 'bottle',
-      amount: 1,
-      calories: 160,
-      fatGrams: 3,
-      carbsGrams: 5,
-      proteinGrams: 30,
-      sugarGrams: 2,
-      createdAt: now
-    })
   } finally {
     await pool.end()
   }
