@@ -1,5 +1,5 @@
-export type Mode = 'calorie' | 'weight' | 'stats'
-export type TrackMode = 'calorie' | 'protein'
+export type Mode = 'calorie' | 'stats'
+export type TrackMode = 'calorie' | 'protein' | 'weight'
 
 export interface CalorieEntry {
   id: number

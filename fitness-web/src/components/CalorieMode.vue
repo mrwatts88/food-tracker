@@ -2,6 +2,7 @@
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useProteinStore } from '@/stores/protein'
+import { useWeightStore } from '@/stores/weight'
 import type { TrackMode } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
@@ -9,10 +10,16 @@ import Keyboard from './Keyboard.vue'
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
 const proteinStore = useProteinStore()
+const weightStore = useWeightStore()
 
 async function handleSubmit(amount: number) {
   if (appStore.trackMode === 'protein') {
     await proteinStore.addEntry(amount)
+    return
+  }
+
+  if (appStore.trackMode === 'weight') {
+    await weightStore.addEntry(amount)
     return
   }
 
@@ -31,7 +38,7 @@ function handleTrackModeChange(trackMode: TrackMode) {
 <template>
   <div class="calorie-mode">
     <div class="display-section">
-      <CalorieDisplay />
+      <CalorieDisplay :track-mode="appStore.trackMode" />
       <div class="track-toggle">
         <button
           :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
@@ -49,6 +56,16 @@ function handleTrackModeChange(trackMode: TrackMode) {
         >
           Protein
         </button>
+        <button
+          :class="[
+            'track-toggle-button',
+            'track-toggle-button--weight',
+            { active: appStore.trackMode === 'weight' }
+          ]"
+          @click="handleTrackModeChange('weight')"
+        >
+          Weight
+        </button>
       </div>
     </div>
     <div class="input-section">
@@ -57,7 +74,9 @@ function handleTrackModeChange(trackMode: TrackMode) {
         :submitting="
           appStore.trackMode === 'protein'
             ? proteinStore.submittingEntry
-            : calorieStore.submittingEntry
+            : appStore.trackMode === 'weight'
+              ? weightStore.submittingEntry
+              : calorieStore.submittingEntry
         "
         @submit="handleSubmit"
       />
@@ -118,6 +137,12 @@ function handleTrackModeChange(trackMode: TrackMode) {
   background: color-mix(in srgb, var(--color-protein-primary) 18%, transparent);
   border-color: color-mix(in srgb, var(--color-protein-primary) 50%, transparent);
   color: var(--color-protein-primary);
+}
+
+.track-toggle-button--weight.active {
+  background: color-mix(in srgb, var(--color-weight-primary) 18%, transparent);
+  border-color: color-mix(in srgb, var(--color-weight-primary) 50%, transparent);
+  color: var(--color-weight-primary);
 }
 
 .track-toggle-button:active {

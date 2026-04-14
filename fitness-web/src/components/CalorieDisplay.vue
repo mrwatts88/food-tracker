@@ -4,9 +4,16 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useProteinStore } from '@/stores/protein'
+import { useWeightStore } from '@/stores/weight'
+import type { TrackMode } from '@/types'
+
+const props = defineProps<{
+  trackMode: TrackMode
+}>()
 
 const calorieStore = useCalorieStore()
 const proteinStore = useProteinStore()
+const weightStore = useWeightStore()
 const appStore = useAppStore()
 
 const nowTick = ref(Date.now())
@@ -14,21 +21,38 @@ const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
 let intervalId: number | null = null
 
-const isProteinMode = computed(() => appStore.trackMode === 'protein')
+const isProteinMode = computed(() => props.trackMode === 'protein')
+const isWeightMode = computed(() => props.trackMode === 'weight')
 
-const isLoading = computed(() => {
+const primaryLoading = computed(() => {
+  if (isWeightMode.value) {
+    return weightStore.loading
+  }
+
   return isProteinMode.value ? proteinStore.loading : calorieStore.loading
 })
 
-const isSubmitting = computed(() => {
+const primarySubmitting = computed(() => {
+  if (isWeightMode.value) {
+    return weightStore.submittingEntry
+  }
+
   return isProteinMode.value ? proteinStore.submittingEntry : calorieStore.submittingEntry
 })
 
 const accentColor = computed(() => {
+  if (isWeightMode.value) {
+    return 'var(--color-weight-primary)'
+  }
+
   return isProteinMode.value ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
 })
 
 const loadingLabel = computed(() => {
+  if (isWeightMode.value) {
+    return 'Loading weight'
+  }
+
   return isProteinMode.value ? 'Loading protein' : 'Loading calories'
 })
 
@@ -36,6 +60,30 @@ const unlockStatus = computed(() => calorieStore.unlockStatus)
 
 const availableCalories = computed(() => {
   return unlockStatus.value?.availableCalories ?? Math.max(0, calorieStore.remainingCalories)
+})
+
+const mainCardLabel = computed(() => {
+  if (isWeightMode.value) {
+    return "Today's Weight"
+  }
+
+  return isProteinMode.value ? 'Protein Today' : 'Calories Available'
+})
+
+const mainCardValue = computed(() => {
+  if (isWeightMode.value) {
+    return weightStore.todayWeight?.amount.toFixed(1) ?? '-'
+  }
+
+  return isProteinMode.value ? formatNumber(proteinStore.totalProtein) : formatNumber(availableCalories.value)
+})
+
+const mainCardDetail = computed(() => {
+  if (isWeightMode.value) {
+    return weightStore.todayWeight ? 'Latest entry for today' : 'No weight logged today'
+  }
+
+  return isProteinMode.value ? 'Running total for today' : 'Available right now'
 })
 
 const consumedVsTarget = computed(() => {
@@ -109,11 +157,25 @@ const countdownLabel = computed(() => {
   return formatCountdown(countdownMs.value)
 })
 
+const nextUnlockPrimary = computed(() => {
+  const status = unlockStatus.value
+
+  if (!status) {
+    return 'Loading...'
+  }
+
+  if (status.allCaloriesUnlockedToday) {
+    return 'Done for today'
+  }
+
+  return countdownLabel.value ?? '--:--:--'
+})
+
 const nextUnlockSummary = computed(() => {
   const status = unlockStatus.value
 
   if (!status) {
-    return 'Loading unlock status'
+    return 'Fetching next unlock'
   }
 
   if (status.allCaloriesUnlockedToday) {
@@ -125,20 +187,6 @@ const nextUnlockSummary = computed(() => {
   }
 
   return `${nextUnlockTimeLabel.value} (+${formatNumber(status.nextEffectiveUnlockCalories)})`
-})
-
-const nextUnlockDetail = computed(() => {
-  const status = unlockStatus.value
-
-  if (!status || status.allCaloriesUnlockedToday) {
-    return null
-  }
-
-  if (status.overdrawCalories > 0 && status.nextScheduledUnlockCalories !== status.nextEffectiveUnlockCalories) {
-    return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}`
-  }
-
-  return `Scheduled +${formatNumber(status.nextScheduledUnlockCalories)}`
 })
 
 const streakSummary = computed(() => {
@@ -193,7 +241,6 @@ function maybeRefreshUnlockStatus() {
   const status = unlockStatus.value
 
   if (
-    isProteinMode.value ||
     !status?.nextUnlockAt ||
     status.allCaloriesUnlockedToday ||
     estimatedServerNowMs.value === null ||
@@ -225,7 +272,7 @@ function formatCountdown(milliseconds: number) {
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
 }
 
 function formatNumber(value: number) {
@@ -234,29 +281,13 @@ function formatNumber(value: number) {
 </script>
 
 <template>
-  <div :class="['calorie-display', isProteinMode ? 'calorie-display--protein' : 'calorie-display--calorie']">
-    <template v-if="isProteinMode">
-      <div class="display-hero">
-        <div class="label">Protein Today</div>
-        <div class="value-row">
-          <div
-            v-if="isLoading && !isSubmitting"
-            class="loading-indicator"
-            role="status"
-            :aria-label="loadingLabel"
-          >
-            <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
-          </div>
-          <div
-            v-else
-            class="value"
-            :class="{ 'value-submitting': isSubmitting }"
-            :style="{ color: accentColor }"
-          >
-            {{ proteinStore.totalProtein.toLocaleString() }}
-          </div>
+  <div class="calorie-display">
+    <div class="track-grid">
+      <div class="track-card track-card--primary" :style="{ '--card-accent': accentColor }">
+        <div class="track-card-header">
+          <div class="track-card-label">{{ mainCardLabel }}</div>
           <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path
                 stroke="currentColor"
                 stroke-linecap="round"
@@ -267,15 +298,9 @@ function formatNumber(value: number) {
             </svg>
           </button>
         </div>
-      </div>
-    </template>
-
-    <template v-else>
-      <div class="display-hero">
-        <div class="label">Calories Available Now</div>
-        <div class="value-row">
+        <div class="track-card-body track-card-body--hero">
           <div
-            v-if="isLoading && !isSubmitting && !unlockStatus"
+            v-if="primaryLoading && !primarySubmitting && (isWeightMode || isProteinMode || !unlockStatus)"
             class="loading-indicator"
             role="status"
             :aria-label="loadingLabel"
@@ -284,62 +309,43 @@ function formatNumber(value: number) {
           </div>
           <div
             v-else
-            class="value"
-            :class="{ 'value-submitting': isSubmitting }"
+            class="track-card-value track-card-value--hero"
+            :class="{ 'track-card-value--submitting': primarySubmitting }"
             :style="{ color: accentColor }"
           >
-            {{ availableCalories.toLocaleString() }}
+            {{ mainCardValue }}
           </div>
-          <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-              />
-            </svg>
-          </button>
+        </div>
+        <div class="track-card-detail">{{ mainCardDetail }}</div>
+      </div>
+
+      <div class="track-card">
+        <div class="track-card-label">Next Unlock</div>
+        <div class="track-card-body">
+          <div class="track-card-value">{{ nextUnlockPrimary }}</div>
+          <div class="track-card-detail">{{ nextUnlockSummary }}</div>
+          <div v-if="overdrawMessage" class="track-card-detail track-card-detail--warning">
+            {{ overdrawMessage }}
+          </div>
         </div>
       </div>
 
-      <div class="calorie-meta">
-        <div class="status-grid">
-          <div class="status-card">
-            <div class="status-label">Next Unlock</div>
-            <div class="status-value">{{ nextUnlockSummary }}</div>
-            <div v-if="nextUnlockDetail" class="status-detail">{{ nextUnlockDetail }}</div>
-          </div>
-
-          <div class="status-card">
-            <div class="status-label">Countdown</div>
-            <div class="status-value">
-              {{ countdownLabel ?? (unlockStatus?.allCaloriesUnlockedToday ? 'Done for today' : '--:--:--') }}
-            </div>
-            <div class="status-detail">Server-paced unlock timer</div>
-          </div>
-
-          <div class="status-card">
-            <div class="status-label">No-Borrow Streak</div>
-            <div class="status-value">{{ streakSummary }}</div>
-            <div class="status-detail">Completed unlock slots</div>
-          </div>
-
-          <div class="status-card">
-            <div class="status-label">Consumed vs Target</div>
-            <div class="status-value">{{ consumedVsTarget }}</div>
-            <div class="status-detail">
-              {{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far
-            </div>
-          </div>
-        </div>
-
-        <div v-if="overdrawMessage" class="warning-card">
-          {{ overdrawMessage }}
+      <div class="track-card">
+        <div class="track-card-label">No-Borrow Streak</div>
+        <div class="track-card-body">
+          <div class="track-card-value">{{ streakSummary }}</div>
+          <div class="track-card-detail">Completed unlock slots</div>
         </div>
       </div>
-    </template>
+
+      <div class="track-card">
+        <div class="track-card-label">Consumed vs Target</div>
+        <div class="track-card-body">
+          <div class="track-card-value">{{ consumedVsTarget }}</div>
+          <div class="track-card-detail">{{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -349,32 +355,9 @@ function formatNumber(value: number) {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
   min-height: 0;
   overflow: hidden;
-}
-
-.display-hero {
-  width: 100%;
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  text-align: center;
-}
-
-.calorie-display--protein {
-  justify-content: center;
-  padding-bottom: var(--spacing-sm);
-}
-
-.calorie-display--calorie {
-  justify-content: stretch;
 }
 
 @media (min-width: 429px) {
@@ -384,40 +367,96 @@ function formatNumber(value: number) {
   }
 }
 
-.label {
-  font-size: 14px;
+.track-grid {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.track-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border-radius: var(--border-radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, white 6%), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.track-card--primary {
+  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card-accent) 14%, transparent), var(--color-surface));
+}
+
+.track-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.track-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.track-card-body--hero {
+  align-items: flex-start;
+}
+
+.track-card-label {
+  font-size: 11px;
   color: var(--color-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   font-weight: 600;
-  text-align: center;
 }
 
-.value-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-.value {
-  font-size: clamp(40px, 9vw, 56px);
+.track-card-value {
+  font-size: clamp(18px, 4.4vw, 26px);
   font-weight: 700;
-  line-height: 1;
-  transition: opacity 0.2s ease;
+  line-height: 1.1;
+  color: var(--color-text);
+  word-break: break-word;
 }
 
-.value-submitting {
+.track-card-value--hero {
+  font-size: clamp(34px, 7.4vw, 52px);
+  line-height: 1;
+}
+
+.track-card-value--submitting {
   opacity: 0.45;
+}
+
+.track-card-detail {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.35;
+}
+
+.track-card-detail--warning {
+  color: #fcd34d;
 }
 
 .loading-indicator {
   min-height: 56px;
-  min-width: 120px;
+  min-width: 96px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .loading-spinner {
@@ -430,7 +469,8 @@ function formatNumber(value: number) {
 }
 
 .history-button {
-  padding: 12px;
+  flex-shrink: 0;
+  padding: 8px;
   background: var(--color-surface);
   border: none;
   border-radius: var(--border-radius);
@@ -445,86 +485,28 @@ function formatNumber(value: number) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.calorie-meta {
-  width: 100%;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-bottom: var(--spacing-sm);
-}
-
-.status-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.status-card {
-  min-width: 0;
-  padding: 10px;
-  border-radius: var(--border-radius);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, white 6%), var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
-}
-
-.status-label {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  margin-bottom: 6px;
-}
-
-.status-value {
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.15;
-  color: var(--color-text);
-}
-
-.status-detail {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.warning-card {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: var(--border-radius);
-  background: color-mix(in srgb, #f59e0b 18%, transparent);
-  border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent);
-  color: #fcd34d;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
 @media (max-width: 428px) {
-  .label {
-    font-size: 13px;
+  .calorie-display {
+    padding-bottom: var(--spacing-sm);
   }
 
-  .value-row {
-    gap: 8px;
+  .track-card {
+    padding: 12px;
   }
 
   .history-button {
-    padding: 10px;
+    padding: 7px;
   }
 
-  .status-card {
-    padding: 9px;
+  .track-card-value {
+    font-size: clamp(16px, 4.6vw, 22px);
   }
 
-  .status-value {
-    font-size: 15px;
+  .track-card-value--hero {
+    font-size: clamp(28px, 8vw, 42px);
   }
 
-  .status-detail {
+  .track-card-detail {
     font-size: 11px;
   }
 }

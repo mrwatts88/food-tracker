@@ -6,7 +6,6 @@ import { useProteinStore } from '@/stores/protein'
 import { useWeightStore } from '@/stores/weight'
 import ModeToggle from '@/components/ModeToggle.vue'
 import CalorieMode from '@/components/CalorieMode.vue'
-import WeightMode from '@/components/WeightMode.vue'
 import EntryDrawer from '@/components/EntryDrawer.vue'
 import StatsMode from './components/StatsMode.vue'
 
@@ -23,7 +22,8 @@ onMounted(async () => {
   ])
 
   if (!weightStore.todayWeight) {
-    appStore.setMode('weight')
+    appStore.setMode('calorie')
+    appStore.setTrackMode('weight')
   }
 })
 </script>
@@ -32,7 +32,6 @@ onMounted(async () => {
   <div class="app-container">
     <ModeToggle />
     <CalorieMode v-if="appStore.mode === 'calorie'" />
-    <WeightMode v-if="appStore.mode === 'weight'" />
     <StatsMode v-if="appStore.mode === 'stats'" />
     <EntryDrawer />
   </div>

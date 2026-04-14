@@ -12,7 +12,8 @@ function handleBackdropClick() {
 
 const trackTitle = {
   calorie: "Today's Calorie Entries",
-  protein: "Today's Protein Entries"
+  protein: "Today's Protein Entries",
+  weight: 'Weight History'
 }
 </script>
 
@@ -26,10 +27,10 @@ const trackTitle = {
             :class="{
               'drawer-title--calorie': appStore.mode === 'calorie' && appStore.trackMode === 'calorie',
               'drawer-title--protein': appStore.mode === 'calorie' && appStore.trackMode === 'protein',
-              'drawer-title--weight': appStore.mode === 'weight'
+              'drawer-title--weight': appStore.mode === 'calorie' && appStore.trackMode === 'weight'
             }"
           >
-            {{ appStore.mode === 'calorie' ? trackTitle[appStore.trackMode] : 'Weight History' }}
+            {{ trackTitle[appStore.trackMode] }}
           </h2>
           <button class="close-button" @click="appStore.closeDrawer">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -45,7 +46,7 @@ const trackTitle = {
         <div class="drawer-body">
           <CalorieEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'calorie'" />
           <ProteinEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'protein'" />
-          <WeightEntryList v-if="appStore.mode === 'weight'" />
+          <WeightEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'weight'" />
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import type { TrackMode } from '@/types'
 
 interface Props {
-  mode: TrackMode | 'weight'
+  mode: TrackMode
   submitting?: boolean
 }
 
