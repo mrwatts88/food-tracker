@@ -50,6 +50,7 @@ Shared response/request types live in:
 - `GET /api/caffeine`
 - `POST /api/caffeine`
 - `DELETE /api/caffeine/:id`
+- `GET /api/nutrition/goals`
 - `GET /api/weight`
 - `POST /api/weight`
 - `DELETE /api/weight/:date`
@@ -77,3 +78,4 @@ Response fields:
 `GET /api/tdee` also returns:
 
 - `goalWeight`
+- `calorieDeficit`

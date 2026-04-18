@@ -19,11 +19,18 @@ export interface NutritionEntry {
   createdAt: string // YYYY-MM-DD HH:MM:SS
 }
 
+export type NutritionGoals = Record<NutritionMetric, number>
+
+export interface GoalConfigResponse extends NutritionGoals {
+  calorieDeficit: number
+}
+
 export interface TDEEResponse {
   amount: number
   lossIn2Weeks: number
   eatenPerDay: number
   goalWeight: number
+  calorieDeficit: number
 }
 
 export interface UnlockStatus {

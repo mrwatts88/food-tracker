@@ -5,7 +5,15 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { createApp } from './app'
 import type { AppConfig } from './config'
 import { readMigrationFiles } from './db/run-migrations'
-import { caffeineEntries, calorieEntries, proteinEntries, schema, sugarEntries, weightEntries } from './db/schema'
+import {
+  caffeineEntries,
+  calorieEntries,
+  nutritionGoals,
+  proteinEntries,
+  schema,
+  sugarEntries,
+  weightEntries
+} from './db/schema'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -104,6 +112,86 @@ describe('fitness api', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ status: 'healthy' })
+  })
+
+  it('returns the default nutrition goals', async () => {
+    const response = await app.request('/api/nutrition/goals')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      protein: 100,
+      sugar: 80,
+      caffeine: 280,
+      calorieDeficit: 250
+    })
+  })
+
+  it('returns updated nutrition goals from the config table', async () => {
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'protein', amount: 120 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 120 }
+      })
+
+    const response = await app.request('/api/nutrition/goals')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      protein: 120,
+      sugar: 80,
+      caffeine: 280,
+      calorieDeficit: 250
+    })
+
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'protein', amount: 100 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 100 }
+      })
+  })
+
+  it('falls back to default goals when the nutrition goals table has not been migrated yet', async () => {
+    const legacyClient = new PGlite()
+    const legacyDb = drizzle(legacyClient, { schema })
+
+    try {
+      const migrations = await readMigrationFiles()
+
+      for (const migration of migrations.filter(migration => migration.id !== '0004_nutrition_goals')) {
+        await legacyClient.exec(migration.sql)
+      }
+
+      const legacyApp = createApp({
+        db: legacyDb,
+        now: () => now,
+        config: defaultConfig
+      })
+
+      const goalsResponse = await legacyApp.request('/api/nutrition/goals')
+      expect(goalsResponse.status).toBe(200)
+      await expect(goalsResponse.json()).resolves.toEqual({
+        protein: 100,
+        sugar: 80,
+        caffeine: 280,
+        calorieDeficit: 250
+      })
+
+      const unlockResponse = await legacyApp.request('/api/calories/unlock-status')
+      const unlockBody = (await unlockResponse.json()) as {
+        dailyTargetCalories: number
+      }
+
+      expect(unlockResponse.status).toBe(200)
+      expect(unlockBody).toMatchObject({
+        dailyTargetCalories: 2000
+      })
+    } finally {
+      await legacyClient.close()
+    }
   })
 
   it('creates, lists, and deletes calorie entries for the current local day', async () => {
@@ -287,6 +375,45 @@ describe('fitness api', () => {
       nextScheduledUnlockCalories: 687,
       nextEffectiveUnlockCalories: 687
     })
+  })
+
+  it('uses the configured calorie deficit when deriving the calorie goal', async () => {
+    await seedTdeeFixture()
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'calorie_deficit', amount: 300 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 300 }
+      })
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T17:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      dailyTargetCalories: number
+      unlockedCalories: number
+      nextScheduledUnlockCalories: number
+      nextEffectiveUnlockCalories: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({
+      dailyTargetCalories: 2700,
+      unlockedCalories: 1350,
+      nextScheduledUnlockCalories: 675,
+      nextEffectiveUnlockCalories: 675
+    })
+
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'calorie_deficit', amount: 250 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 250 }
+      })
   })
 
   it('reduces the next unlock when calories are overdrawn', async () => {
@@ -710,6 +837,7 @@ describe('fitness api', () => {
       lossIn2Weeks: number
       eatenPerDay: number
       goalWeight: number
+      calorieDeficit: number
     }
 
     expect(response.status).toBe(200)
@@ -717,7 +845,8 @@ describe('fitness api', () => {
       amount: 3000,
       lossIn2Weeks: 2,
       eatenPerDay: 2500,
-      goalWeight: 189
+      goalWeight: 189,
+      calorieDeficit: 250
     })
   })
 
@@ -735,7 +864,8 @@ describe('fitness api', () => {
       amount: 0,
       lossIn2Weeks: 0,
       eatenPerDay: 0,
-      goalWeight: 189
+      goalWeight: 189,
+      calorieDeficit: 250
     })
   })
 })

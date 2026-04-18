@@ -3,14 +3,13 @@ import { defineStore } from 'pinia'
 import type { CalorieEntry, TDEEResponse, UnlockStatus } from '@/types'
 import { calorieApi, tdeeApi } from '@/services/api'
 
-const CALORIE_DEFICIT = 250
-
 export const useCalorieStore = defineStore('calorie', () => {
   const entries = ref<CalorieEntry[]>([])
   const tdee = ref<number>(0)
   const lossIn2Weeks = ref<number>(0)
   const eatenPerDay = ref<number | null>(null)
   const goalWeight = ref<number | null>(null)
+  const calorieDeficit = ref<number>(250)
   const unlockStatus = ref<UnlockStatus | null>(null)
   const unlockStatusReceivedAt = ref<number>(0)
   const loading = ref(false)
@@ -25,7 +24,7 @@ export const useCalorieStore = defineStore('calorie', () => {
   })
 
   const calorieGoal = computed(() => {
-    return tdee.value - CALORIE_DEFICIT
+    return tdee.value - calorieDeficit.value
   })
 
   const remainingCalories = computed(() => {
@@ -44,6 +43,10 @@ export const useCalorieStore = defineStore('calorie', () => {
         : null
     goalWeight.value =
       typeof data.goalWeight === 'number' && Number.isFinite(data.goalWeight) ? data.goalWeight : null
+    calorieDeficit.value =
+      typeof data.calorieDeficit === 'number' && Number.isFinite(data.calorieDeficit)
+        ? data.calorieDeficit
+        : 250
   }
 
   function applyUnlockStatus(data: UnlockStatus) {
@@ -165,6 +168,7 @@ export const useCalorieStore = defineStore('calorie', () => {
     lossIn2Weeks,
     eatenPerDay,
     goalWeight,
+    calorieDeficit,
     unlockStatus,
     unlockStatusReceivedAt,
     loading,

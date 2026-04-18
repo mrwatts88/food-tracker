@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type {
   CalorieEntry,
+  GoalConfigResponse,
   NutritionEntry,
   NutritionMetric,
   TDEEResponse,
@@ -35,6 +36,7 @@ const nutritionEndpoints: Record<NutritionMetric, string> = {
 
 export const nutritionApi = {
   getEntries: (metric: NutritionMetric) => api.get<NutritionEntry[]>(nutritionEndpoints[metric]),
+  getGoals: () => api.get<GoalConfigResponse>('/nutrition/goals'),
   addEntry: (metric: NutritionMetric, amount: number) =>
     api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
   deleteEntry: (metric: NutritionMetric, id: number) =>

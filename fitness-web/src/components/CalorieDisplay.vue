@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
+  formatNutritionProgress,
   formatNutritionTotal,
   nutritionMetricColorVars,
   nutritionMetricLabels,
@@ -40,7 +41,11 @@ const nutritionSummaryItems = computed(() =>
   nutritionMetrics.map(metric => ({
     metric,
     label: nutritionMetricLabels[metric],
-    value: formatNutritionTotal(metric, nutritionStore.totalsByMetric[metric]),
+    value: formatNutritionProgress(
+      metric,
+      nutritionStore.totalsByMetric[metric],
+      nutritionStore.goalsByMetric[metric]
+    ),
     color: nutritionMetricColorVars[metric]
   }))
 )
@@ -117,7 +122,7 @@ const mainCardValue = computed(() => {
   }
 
   if (isNutritionMode.value) {
-    return formatNumber(nutritionStore.currentTotal)
+    return formatNutritionTotal(activeNutritionMetric.value, nutritionStore.currentTotal)
   }
 
   return formatNumber(availableCalories.value)
@@ -627,17 +632,22 @@ function formatNumber(value: number) {
 }
 
 .nutrition-summary-card {
+  min-width: 0;
   justify-content: flex-start;
 }
 
 .nutrition-summary-list {
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .nutrition-summary-button {
+  width: 100%;
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--border-radius);
   background: rgba(255, 255, 255, 0.03);
@@ -658,12 +668,17 @@ function formatNumber(value: number) {
 }
 
 .nutrition-summary-button__label {
-  font-size: 16px;
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .nutrition-summary-button__value {
-  font-size: 16px;
+  min-width: 0;
+  text-align: right;
+  word-break: break-word;
+  font-size: 14px;
   color: var(--metric-accent);
   font-weight: 700;
 }
@@ -699,7 +714,7 @@ function formatNumber(value: number) {
 
   .nutrition-summary-button__label,
   .nutrition-summary-button__value {
-    font-size: 15px;
+    font-size: 13px;
   }
 }
 

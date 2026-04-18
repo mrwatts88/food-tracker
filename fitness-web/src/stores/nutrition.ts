@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 
 import { nutritionApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
-import type { NutritionEntry, NutritionMetric } from '@/types'
+import type { NutritionEntry, NutritionGoals, NutritionMetric } from '@/types'
 import { nutritionMetrics } from '@/lib/nutrition'
 
 type MetricEntryMap = Record<NutritionMetric, NutritionEntry[]>
@@ -30,6 +30,11 @@ export const useNutritionStore = defineStore('nutrition', () => {
   const entriesByMetric = reactive<MetricEntryMap>(createMetricEntryMap())
   const loadingByMetric = reactive<MetricFlagMap>(createMetricFlagMap())
   const submittingByMetric = reactive<MetricFlagMap>(createMetricFlagMap())
+  const goalsByMetric = reactive<NutritionGoals>({
+    protein: 100,
+    sugar: 80,
+    caffeine: 280
+  })
 
   const totalsByMetric = computed<Record<NutritionMetric, number>>(() => ({
     protein: entriesByMetric.protein.reduce((sum, entry) => sum + entry.amount, 0),
@@ -40,6 +45,7 @@ export const useNutritionStore = defineStore('nutrition', () => {
   const currentMetric = computed(() => appStore.nutritionMetric)
   const currentEntries = computed(() => entriesByMetric[currentMetric.value])
   const currentTotal = computed(() => totalsByMetric.value[currentMetric.value])
+  const currentGoal = computed(() => goalsByMetric[currentMetric.value] ?? null)
   const currentLoading = computed(() => loadingByMetric[currentMetric.value])
   const currentSubmitting = computed(() => submittingByMetric[currentMetric.value])
 
@@ -83,12 +89,15 @@ export const useNutritionStore = defineStore('nutrition', () => {
       }
     }
 
-    const results = await Promise.allSettled(
-      nutritionMetrics.map(async metric => ({
-        metric,
-        response: await nutritionApi.getEntries(metric)
-      }))
-    )
+    const [results, goalsResult] = await Promise.all([
+      Promise.allSettled(
+        nutritionMetrics.map(async metric => ({
+          metric,
+          response: await nutritionApi.getEntries(metric)
+        }))
+      ),
+      nutritionApi.getGoals().catch(error => ({ error }))
+    ])
 
     for (const result of results) {
       if (result.status === 'fulfilled') {
@@ -96,6 +105,16 @@ export const useNutritionStore = defineStore('nutrition', () => {
       } else {
         console.error('Failed to refresh nutrition entries:', result.reason)
       }
+    }
+
+    if ('data' in goalsResult) {
+      Object.assign(goalsByMetric, {
+        protein: goalsResult.data.protein,
+        sugar: goalsResult.data.sugar,
+        caffeine: goalsResult.data.caffeine
+      })
+    } else {
+      console.error('Failed to refresh nutrition goals:', goalsResult.error)
     }
 
     if (setLoading) {
@@ -133,10 +152,12 @@ export const useNutritionStore = defineStore('nutrition', () => {
     entriesByMetric,
     loadingByMetric,
     submittingByMetric,
+    goalsByMetric,
     totalsByMetric,
     currentMetric,
     currentEntries,
     currentTotal,
+    currentGoal,
     currentLoading,
     currentSubmitting,
     fetchEntries,

@@ -23,3 +23,11 @@ export const nutritionMetricColorVars: Record<NutritionMetric, string> = {
 export function formatNutritionTotal(metric: NutritionMetric, amount: number) {
   return `${amount.toLocaleString()} ${nutritionMetricUnits[metric]}`
 }
+
+export function formatNutritionProgress(metric: NutritionMetric, amount: number, goal: number | null) {
+  if (goal === null) {
+    return `${amount.toLocaleString()}/--${nutritionMetricUnits[metric]}`
+  }
+
+  return `${amount.toLocaleString()}/${goal.toLocaleString()}${nutritionMetricUnits[metric]}`
+}

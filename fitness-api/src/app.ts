@@ -5,8 +5,16 @@ import { z } from 'zod'
 
 import { loadConfig, type AppConfig } from './config'
 import { getDatabase, type Database } from './db/client'
-import { caffeineEntries, calorieEntries, proteinEntries, sugarEntries, weightEntries } from './db/schema'
+import {
+  caffeineEntries,
+  calorieEntries,
+  nutritionGoals,
+  proteinEntries,
+  sugarEntries,
+  weightEntries
+} from './db/schema'
 import { calculateUnlockStatus } from './lib/calorie-unlock'
+import { getGoalConfig } from './lib/goals'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
 
@@ -92,13 +100,15 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.get('/calories/unlock-status', async c => {
     const runtime = getRuntime(dependencies)
+    const goalConfig = await getGoalConfig(runtime.db)
 
     const unlockStatus = await calculateUnlockStatus({
       db: runtime.db,
       now: runtime.now(),
       timezone: runtime.config.appTimezone,
       schedule: runtime.config.calorieUnlockSchedule,
-      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+      fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
+      calorieDeficit: goalConfig.calorieDeficit
     })
 
     return c.json(unlockStatus)
@@ -140,6 +150,11 @@ export function createApp(dependencies: AppDependencies = {}) {
   registerNutritionEntryRoutes(app, dependencies, 'protein', proteinEntries)
   registerNutritionEntryRoutes(app, dependencies, 'sugar', sugarEntries)
   registerNutritionEntryRoutes(app, dependencies, 'caffeine', caffeineEntries)
+
+  app.get('/nutrition/goals', async c => {
+    const runtime = getRuntime(dependencies)
+    return c.json(await getGoalConfig(runtime.db))
+  })
 
   app.get('/weight', async c => {
     const runtime = getRuntime(dependencies)
@@ -195,11 +210,15 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.get('/tdee', async c => {
     const runtime = getRuntime(dependencies)
-    const stats = await calculateTdeeStats(runtime.db, runtime.now(), runtime.config.appTimezone)
+    const [stats, goalConfig] = await Promise.all([
+      calculateTdeeStats(runtime.db, runtime.now(), runtime.config.appTimezone),
+      getGoalConfig(runtime.db)
+    ])
 
     return c.json({
       ...stats,
-      goalWeight: runtime.config.goalWeight
+      goalWeight: runtime.config.goalWeight,
+      calorieDeficit: goalConfig.calorieDeficit
     })
   })
 

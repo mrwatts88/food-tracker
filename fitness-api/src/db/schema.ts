@@ -1,4 +1,4 @@
-import { date, doublePrecision, integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core'
+import { date, doublePrecision, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const calorieEntries = pgTable('calorie_entries', {
   id: serial('id').primaryKey(),
@@ -24,6 +24,11 @@ export const caffeineEntries = pgTable('caffeine_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const nutritionGoals = pgTable('nutrition_goals', {
+  metric: text('metric').primaryKey(),
+  amount: integer('amount').notNull()
+})
+
 export const weightEntries = pgTable('weight_entries', {
   createdAt: date('created_at').primaryKey(),
   amount: doublePrecision('amount').notNull()
@@ -34,5 +39,6 @@ export const schema = {
   proteinEntries,
   sugarEntries,
   caffeineEntries,
+  nutritionGoals,
   weightEntries
 }

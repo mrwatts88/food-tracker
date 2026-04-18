@@ -6,7 +6,6 @@ import { calorieEntries } from '../db/schema'
 import { getCurrentDateTime, toZonedIso } from './time'
 import { calculateTdeeStats } from './tdee'
 
-const CALORIE_DEFICIT = 250
 const FRACTION_SUM_TOLERANCE = 0.000001
 
 type UnlockScheduleSlot = {
@@ -52,15 +51,16 @@ export async function calculateUnlockStatus(options: {
   timezone: string
   schedule: string
   fallbackGoal: number
+  calorieDeficit: number
 }): Promise<UnlockStatus> {
-  const { db, now, timezone, schedule, fallbackGoal } = options
+  const { db, now, timezone, schedule, fallbackGoal, calorieDeficit } = options
   const current = getCurrentDateTime(now, timezone)
   const todayKey = current.toISODate() ?? ''
   const scheduleSlots = parseUnlockSchedule(schedule)
 
   const [entries, dailyTargetCalories] = await Promise.all([
     loadCalorieEntries(db, timezone),
-    calculateDailyTargetCalories(db, current, timezone, fallbackGoal)
+    calculateDailyTargetCalories(db, current, timezone, fallbackGoal, calorieDeficit)
   ])
 
   const todayEntries = entries.filter(entry => entry.localDate === todayKey)
@@ -77,6 +77,7 @@ export async function calculateUnlockStatus(options: {
     timezone,
     scheduleSlots,
     fallbackGoal,
+    calorieDeficit,
     entries
   })
 
@@ -213,9 +214,10 @@ async function calculateNoBorrowUnlockStreak(options: {
   timezone: string
   scheduleSlots: UnlockScheduleSlot[]
   fallbackGoal: number
+  calorieDeficit: number
   entries: LocalCalorieEntry[]
 }) {
-  const { db, current, timezone, scheduleSlots, fallbackGoal, entries } = options
+  const { db, current, timezone, scheduleSlots, fallbackGoal, calorieDeficit, entries } = options
 
   if (entries.length === 0) {
     return 0
@@ -250,6 +252,7 @@ async function calculateNoBorrowUnlockStreak(options: {
       day,
       timezone,
       fallbackGoal,
+      calorieDeficit,
       dailyTargetCache
     )
     const completedSlots = buildDailyUnlockSchedule(day, scheduleSlots, dailyTargetCalories).slice(
@@ -339,6 +342,7 @@ async function getDailyTargetCaloriesForDay(
   day: DateTime,
   timezone: string,
   fallbackGoal: number,
+  calorieDeficit: number,
   cache: Map<string, number>
 ) {
   const dayKey = day.toISODate() ?? ''
@@ -348,7 +352,13 @@ async function getDailyTargetCaloriesForDay(
     return cached
   }
 
-  const dailyTargetCalories = await calculateDailyTargetCalories(db, day.endOf('day'), timezone, fallbackGoal)
+  const dailyTargetCalories = await calculateDailyTargetCalories(
+    db,
+    day.endOf('day'),
+    timezone,
+    fallbackGoal,
+    calorieDeficit
+  )
   cache.set(dayKey, dailyTargetCalories)
   return dailyTargetCalories
 }
@@ -357,10 +367,11 @@ async function calculateDailyTargetCalories(
   db: Database,
   now: DateTime,
   timezone: string,
-  fallbackGoal: number
+  fallbackGoal: number,
+  calorieDeficit: number
 ) {
   const tdeeStats = await calculateTdeeStats(db, now.toJSDate(), timezone)
-  const derivedGoal = Number.isFinite(tdeeStats.amount) ? tdeeStats.amount - CALORIE_DEFICIT : 0
+  const derivedGoal = Number.isFinite(tdeeStats.amount) ? tdeeStats.amount - calorieDeficit : 0
 
   return derivedGoal > 0 ? derivedGoal : fallbackGoal
 }
