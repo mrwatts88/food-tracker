@@ -1,0 +1,25 @@
+import type { NutritionMetric } from '@/types'
+
+export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine']
+
+export const nutritionMetricLabels: Record<NutritionMetric, string> = {
+  protein: 'Protein',
+  sugar: 'Sugar',
+  caffeine: 'Caffeine'
+}
+
+export const nutritionMetricUnits: Record<NutritionMetric, string> = {
+  protein: 'g',
+  sugar: 'g',
+  caffeine: 'mg'
+}
+
+export const nutritionMetricColorVars: Record<NutritionMetric, string> = {
+  protein: 'var(--color-protein-primary)',
+  sugar: 'var(--color-sugar-primary)',
+  caffeine: 'var(--color-caffeine-primary)'
+}
+
+export function formatNutritionTotal(metric: NutritionMetric, amount: number) {
+  return `${amount.toLocaleString()} ${nutritionMetricUnits[metric]}`
+}

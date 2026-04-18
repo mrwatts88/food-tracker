@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { createApp } from './app'
 import type { AppConfig } from './config'
 import { readMigrationFiles } from './db/run-migrations'
-import { calorieEntries, proteinEntries, schema, weightEntries } from './db/schema'
+import { caffeineEntries, calorieEntries, proteinEntries, schema, sugarEntries, weightEntries } from './db/schema'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -48,6 +48,8 @@ function createTestApp(options: { now?: Date; config?: Partial<AppConfig> } = {}
 async function clearTrackingData() {
   await db.delete(calorieEntries)
   await db.delete(proteinEntries)
+  await db.delete(sugarEntries)
+  await db.delete(caffeineEntries)
   await db.delete(weightEntries)
 }
 
@@ -613,6 +615,92 @@ describe('fitness api', () => {
     expect(response.status).toBe(200)
   })
 
+  it('creates, lists, and deletes sugar entries for the current local day', async () => {
+    await db.insert(sugarEntries).values({
+      amount: 12,
+      createdAt: new Date('2026-03-17T04:59:59.000Z')
+    })
+
+    const createResponse = await app.request('/api/sugar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 18 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const listResponse = await app.request('/api/sugar')
+    const entries = (await listResponse.json()) as Array<{
+      id: number
+      amount: number
+      createdAt: string
+    }>
+
+    expect(listResponse.status).toBe(200)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      amount: 18,
+      createdAt: '2026-03-17 12:00:00'
+    })
+
+    const deleteResponse = await app.request(`/api/sugar/${entries[0].id}`, {
+      method: 'DELETE'
+    })
+
+    expect(deleteResponse.status).toBe(200)
+  })
+
+  it('treats deleting a missing sugar entry as a success', async () => {
+    const response = await app.request('/api/sugar/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('creates, lists, and deletes caffeine entries for the current local day', async () => {
+    await db.insert(caffeineEntries).values({
+      amount: 80,
+      createdAt: new Date('2026-03-17T04:59:59.000Z')
+    })
+
+    const createResponse = await app.request('/api/caffeine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 120 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const listResponse = await app.request('/api/caffeine')
+    const entries = (await listResponse.json()) as Array<{
+      id: number
+      amount: number
+      createdAt: string
+    }>
+
+    expect(listResponse.status).toBe(200)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      amount: 120,
+      createdAt: '2026-03-17 12:00:00'
+    })
+
+    const deleteResponse = await app.request(`/api/caffeine/${entries[0].id}`, {
+      method: 'DELETE'
+    })
+
+    expect(deleteResponse.status).toBe(200)
+  })
+
+  it('treats deleting a missing caffeine entry as a success', async () => {
+    const response = await app.request('/api/caffeine/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
   it('calculates TDEE from the rolling calorie and weight windows', async () => {
     await seedTdeeFixture()
 
@@ -636,6 +724,8 @@ describe('fitness api', () => {
   it('returns zeros for TDEE when weight history is missing', async () => {
     await db.delete(calorieEntries)
     await db.delete(proteinEntries)
+    await db.delete(sugarEntries)
+    await db.delete(caffeineEntries)
     await db.delete(weightEntries)
 
     const response = await app.request('/api/tdee')

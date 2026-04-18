@@ -41,6 +41,15 @@ Shared response/request types live in:
 - `GET /api/calories/unlock-status`
 - `POST /api/calories`
 - `DELETE /api/calories/:id`
+- `GET /api/protein`
+- `POST /api/protein`
+- `DELETE /api/protein/:id`
+- `GET /api/sugar`
+- `POST /api/sugar`
+- `DELETE /api/sugar/:id`
+- `GET /api/caffeine`
+- `POST /api/caffeine`
+- `DELETE /api/caffeine/:id`
 - `GET /api/weight`
 - `POST /api/weight`
 - `DELETE /api/weight/:date`

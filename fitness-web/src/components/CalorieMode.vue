@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { nutritionMetricColorVars } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
-import { useProteinStore } from '@/stores/protein'
+import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import type { TrackMode } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
@@ -9,12 +12,25 @@ import Keyboard from './Keyboard.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
-const proteinStore = useProteinStore()
+const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 
+const nutritionAccentColor = computed(() => nutritionMetricColorVars[appStore.nutritionMetric])
+const keyboardAccentColor = computed(() => {
+  if (appStore.trackMode === 'nutrition') {
+    return nutritionAccentColor.value
+  }
+
+  if (appStore.trackMode === 'weight') {
+    return 'var(--color-weight-primary)'
+  }
+
+  return 'var(--color-calorie-primary)'
+})
+
 async function handleSubmit(amount: number) {
-  if (appStore.trackMode === 'protein') {
-    await proteinStore.addEntry(amount)
+  if (appStore.trackMode === 'nutrition') {
+    await nutritionStore.addEntry(amount)
     return
   }
 
@@ -49,12 +65,13 @@ function handleTrackModeChange(trackMode: TrackMode) {
         <button
           :class="[
             'track-toggle-button',
-            'track-toggle-button--protein',
-            { active: appStore.trackMode === 'protein' }
+            'track-toggle-button--nutrition',
+            { active: appStore.trackMode === 'nutrition' }
           ]"
-          @click="handleTrackModeChange('protein')"
+          :style="{ '--track-accent': nutritionAccentColor }"
+          @click="handleTrackModeChange('nutrition')"
         >
-          Protein
+          Nutrition
         </button>
         <button
           :class="[
@@ -71,9 +88,10 @@ function handleTrackModeChange(trackMode: TrackMode) {
     <div class="input-section">
       <Keyboard
         :mode="appStore.trackMode"
+        :accent-color="keyboardAccentColor"
         :submitting="
-          appStore.trackMode === 'protein'
-            ? proteinStore.submittingEntry
+          appStore.trackMode === 'nutrition'
+            ? nutritionStore.currentSubmitting
             : appStore.trackMode === 'weight'
               ? weightStore.submittingEntry
               : calorieStore.submittingEntry
@@ -133,10 +151,10 @@ function handleTrackModeChange(trackMode: TrackMode) {
   color: var(--color-calorie-primary);
 }
 
-.track-toggle-button--protein.active {
-  background: color-mix(in srgb, var(--color-protein-primary) 18%, transparent);
-  border-color: color-mix(in srgb, var(--color-protein-primary) 50%, transparent);
-  color: var(--color-protein-primary);
+.track-toggle-button--nutrition.active {
+  background: color-mix(in srgb, var(--track-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--track-accent) 50%, transparent);
+  color: var(--track-accent);
 }
 
 .track-toggle-button--weight.active {

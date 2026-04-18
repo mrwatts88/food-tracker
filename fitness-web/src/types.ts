@@ -1,5 +1,6 @@
 export type Mode = 'calorie' | 'stats'
-export type TrackMode = 'calorie' | 'protein' | 'weight'
+export type TrackMode = 'calorie' | 'nutrition' | 'weight'
+export type NutritionMetric = 'protein' | 'sugar' | 'caffeine'
 
 export interface CalorieEntry {
   id: number
@@ -12,7 +13,7 @@ export interface WeightEntry {
   createdAt: string // YYYY-MM-DD
 }
 
-export interface ProteinEntry {
+export interface NutritionEntry {
   id: number
   amount: number
   createdAt: string // YYYY-MM-DD HH:MM:SS

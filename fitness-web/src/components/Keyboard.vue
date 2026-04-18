@@ -5,10 +5,12 @@ import type { TrackMode } from '@/types'
 
 interface Props {
   mode: TrackMode
+  accentColor?: string | null
   submitting?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  accentColor: null,
   submitting: false
 })
 const emit = defineEmits<{
@@ -62,11 +64,15 @@ function handleSubmit() {
 }
 
 const primaryColor = computed(() => {
+  if (props.accentColor) {
+    return props.accentColor
+  }
+
   if (props.mode === 'weight') {
     return 'var(--color-weight-primary)'
   }
 
-  return props.mode === 'protein' ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
+  return 'var(--color-calorie-primary)'
 })
 
 onMounted(() => {

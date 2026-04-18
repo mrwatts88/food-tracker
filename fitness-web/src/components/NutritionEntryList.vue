@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { useProteinStore } from '@/stores/protein'
+import { nutritionMetricColorVars, nutritionMetricLabels, nutritionMetricUnits } from '@/lib/nutrition'
+import { useAppStore } from '@/stores/app'
+import { useNutritionStore } from '@/stores/nutrition'
 
-const proteinStore = useProteinStore()
+const appStore = useAppStore()
+const nutritionStore = useNutritionStore()
 const deletingId = ref<number | null>(null)
 
+const currentMetric = computed(() => appStore.nutritionMetric)
+const currentLabel = computed(() => nutritionMetricLabels[currentMetric.value])
+const currentUnit = computed(() => nutritionMetricUnits[currentMetric.value])
+const currentColor = computed(() => nutritionMetricColorVars[currentMetric.value])
+
 const sortedEntries = computed(() => {
-  return [...proteinStore.entries].sort(
+  return [...nutritionStore.currentEntries].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
 })
@@ -19,19 +27,23 @@ function formatTime(datetime: string) {
 
 async function handleDelete(id: number) {
   deletingId.value = id
-  await proteinStore.deleteEntry(id)
+  await nutritionStore.deleteEntry(id, currentMetric.value)
   deletingId.value = null
 }
 </script>
 
 <template>
   <div class="entry-list">
-    <div v-if="sortedEntries.length === 0" class="empty-state">No entries today</div>
+    <div v-if="sortedEntries.length === 0" class="empty-state">
+      No {{ currentLabel.toLowerCase() }} entries today
+    </div>
     <div v-else class="entries">
       <div v-for="entry in sortedEntries" :key="entry.id" class="entry-item">
         <div class="entry-info">
           <div class="entry-time">{{ formatTime(entry.createdAt) }}</div>
-          <div class="entry-amount">{{ entry.amount }} g</div>
+          <div class="entry-amount" :style="{ color: currentColor }">
+            {{ entry.amount }} {{ currentUnit }}
+          </div>
         </div>
         <button
           class="delete-button"
@@ -97,7 +109,6 @@ async function handleDelete(id: number) {
 .entry-amount {
   font-size: 18px;
   font-weight: 600;
-  color: var(--color-protein-primary);
 }
 
 .delete-button {

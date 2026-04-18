@@ -1,5 +1,12 @@
 import axios from 'axios'
-import type { CalorieEntry, ProteinEntry, TDEEResponse, UnlockStatus, WeightEntry } from '@/types'
+import type {
+  CalorieEntry,
+  NutritionEntry,
+  NutritionMetric,
+  TDEEResponse,
+  UnlockStatus,
+  WeightEntry
+} from '@/types'
 
 const apiBaseUrl = import.meta.env.DEV
   ? import.meta.env.VITE_API_BASE_URL || '/api'
@@ -20,11 +27,18 @@ export const calorieApi = {
   deleteEntry: (id: number) => api.delete(`/calories/${id}`)
 }
 
-// Protein API
-export const proteinApi = {
-  getEntries: () => api.get<ProteinEntry[]>('/protein'),
-  addEntry: (amount: number) => api.post<ProteinEntry>('/protein', { amount }),
-  deleteEntry: (id: number) => api.delete(`/protein/${id}`)
+const nutritionEndpoints: Record<NutritionMetric, string> = {
+  protein: '/protein',
+  sugar: '/sugar',
+  caffeine: '/caffeine'
+}
+
+export const nutritionApi = {
+  getEntries: (metric: NutritionMetric) => api.get<NutritionEntry[]>(nutritionEndpoints[metric]),
+  addEntry: (metric: NutritionMetric, amount: number) =>
+    api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
+  deleteEntry: (metric: NutritionMetric, id: number) =>
+    api.delete(`${nutritionEndpoints[metric]}/${id}`)
 }
 
 // Weight API

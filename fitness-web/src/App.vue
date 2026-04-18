@@ -2,7 +2,7 @@
 import { onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
-import { useProteinStore } from '@/stores/protein'
+import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import ModeToggle from '@/components/ModeToggle.vue'
 import CalorieMode from '@/components/CalorieMode.vue'
@@ -11,13 +11,13 @@ import StatsMode from './components/StatsMode.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
-const proteinStore = useProteinStore()
+const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 
 onMounted(async () => {
   await Promise.all([
     calorieStore.refreshData(),
-    proteinStore.refreshData(),
+    nutritionStore.refreshData(),
     weightStore.fetchEntries()
   ])
 
@@ -41,6 +41,8 @@ onMounted(async () => {
 :root {
   --color-calorie-primary: #10b981;
   --color-protein-primary: #3b82f6;
+  --color-sugar-primary: #f97316;
+  --color-caffeine-primary: #14b8a6;
   --color-weight-primary: #f59e0b;
   --color-background: #1f2937;
   --color-surface: #374151;

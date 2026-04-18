@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { loadConfig, type AppConfig } from './config'
 import { getDatabase, type Database } from './db/client'
-import { calorieEntries, proteinEntries, weightEntries } from './db/schema'
+import { caffeineEntries, calorieEntries, proteinEntries, sugarEntries, weightEntries } from './db/schema'
 import { calculateUnlockStatus } from './lib/calorie-unlock'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
@@ -34,6 +34,7 @@ const weightEntrySchema = z.object({
 })
 
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+type NutritionEntryTable = typeof proteinEntries | typeof sugarEntries | typeof caffeineEntries
 
 export function createApp(dependencies: AppDependencies = {}) {
   const app = new Hono().basePath('/api')
@@ -136,57 +137,9 @@ export function createApp(dependencies: AppDependencies = {}) {
     return c.body(null, 200)
   })
 
-  app.get('/protein', async c => {
-    const runtime = getRuntime(dependencies)
-    const today = getTodayBounds(runtime.now(), runtime.config.appTimezone)
-
-    const entries = await runtime.db
-      .select()
-      .from(proteinEntries)
-      .where(gte(proteinEntries.createdAt, today.startUtc))
-      .orderBy(desc(proteinEntries.createdAt))
-
-    return c.json(
-      entries.map(entry => ({
-        id: entry.id,
-        amount: entry.amount,
-        createdAt: formatTimestamp(entry.createdAt, runtime.config.appTimezone)
-      }))
-    )
-  })
-
-  app.post('/protein', async c => {
-    const runtime = getRuntime(dependencies)
-    const input = calorieEntrySchema.parse(await c.req.json())
-
-    const [entry] = await runtime.db
-      .insert(proteinEntries)
-      .values({
-        amount: input.amount,
-        createdAt: runtime.now()
-      })
-      .returning()
-
-    const createdEntry = assertFound(entry, 'Failed to create protein entry')
-
-    return c.json(
-      {
-        id: createdEntry.id,
-        amount: createdEntry.amount,
-        createdAt: formatTimestamp(createdEntry.createdAt, runtime.config.appTimezone)
-      },
-      201
-    )
-  })
-
-  app.delete('/protein/:id', async c => {
-    const runtime = getRuntime(dependencies)
-    const id = parsePositiveInteger(c.req.param('id'), 'id')
-
-    await runtime.db.delete(proteinEntries).where(eq(proteinEntries.id, id))
-
-    return c.body(null, 200)
-  })
+  registerNutritionEntryRoutes(app, dependencies, 'protein', proteinEntries)
+  registerNutritionEntryRoutes(app, dependencies, 'sugar', sugarEntries)
+  registerNutritionEntryRoutes(app, dependencies, 'caffeine', caffeineEntries)
 
   app.get('/weight', async c => {
     const runtime = getRuntime(dependencies)
@@ -254,6 +207,65 @@ export function createApp(dependencies: AppDependencies = {}) {
 }
 
 export const app = createApp()
+
+function registerNutritionEntryRoutes(
+  app: Hono,
+  dependencies: AppDependencies,
+  path: string,
+  table: NutritionEntryTable
+) {
+  app.get(`/${path}`, async c => {
+    const runtime = getRuntime(dependencies)
+    const today = getTodayBounds(runtime.now(), runtime.config.appTimezone)
+
+    const entries = await runtime.db
+      .select()
+      .from(table)
+      .where(gte(table.createdAt, today.startUtc))
+      .orderBy(desc(table.createdAt))
+
+    return c.json(
+      entries.map(entry => ({
+        id: entry.id,
+        amount: entry.amount,
+        createdAt: formatTimestamp(entry.createdAt, runtime.config.appTimezone)
+      }))
+    )
+  })
+
+  app.post(`/${path}`, async c => {
+    const runtime = getRuntime(dependencies)
+    const input = calorieEntrySchema.parse(await c.req.json())
+
+    const [entry] = await runtime.db
+      .insert(table)
+      .values({
+        amount: input.amount,
+        createdAt: runtime.now()
+      })
+      .returning()
+
+    const createdEntry = assertFound(entry, `Failed to create ${path} entry`)
+
+    return c.json(
+      {
+        id: createdEntry.id,
+        amount: createdEntry.amount,
+        createdAt: formatTimestamp(createdEntry.createdAt, runtime.config.appTimezone)
+      },
+      201
+    )
+  })
+
+  app.delete(`/${path}/:id`, async c => {
+    const runtime = getRuntime(dependencies)
+    const id = parsePositiveInteger(c.req.param('id'), 'id')
+
+    await runtime.db.delete(table).where(eq(table.id, id))
+
+    return c.body(null, 200)
+  })
+}
 
 function parsePositiveInteger(value: string, field: string) {
   const parsed = Number.parseInt(value, 10)

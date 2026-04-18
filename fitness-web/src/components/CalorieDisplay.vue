@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import {
+  formatNutritionTotal,
+  nutritionMetricColorVars,
+  nutritionMetricLabels,
+  nutritionMetricUnits,
+  nutritionMetrics
+} from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
-import { useProteinStore } from '@/stores/protein'
+import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { TrackMode } from '@/types'
+import type { NutritionMetric, TrackMode } from '@/types'
 
 const props = defineProps<{
   trackMode: TrackMode
 }>()
 
 const calorieStore = useCalorieStore()
-const proteinStore = useProteinStore()
+const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const appStore = useAppStore()
 
@@ -21,15 +28,33 @@ const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
 let intervalId: number | null = null
 
-const isProteinMode = computed(() => props.trackMode === 'protein')
+const isNutritionMode = computed(() => props.trackMode === 'nutrition')
 const isWeightMode = computed(() => props.trackMode === 'weight')
+
+const activeNutritionMetric = computed(() => appStore.nutritionMetric)
+const nutritionAccentColor = computed(() => nutritionMetricColorVars[activeNutritionMetric.value])
+const activeNutritionLabel = computed(() => nutritionMetricLabels[activeNutritionMetric.value])
+const activeNutritionUnit = computed(() => nutritionMetricUnits[activeNutritionMetric.value])
+
+const nutritionSummaryItems = computed(() =>
+  nutritionMetrics.map(metric => ({
+    metric,
+    label: nutritionMetricLabels[metric],
+    value: formatNutritionTotal(metric, nutritionStore.totalsByMetric[metric]),
+    color: nutritionMetricColorVars[metric]
+  }))
+)
 
 const primaryLoading = computed(() => {
   if (isWeightMode.value) {
     return weightStore.loading
   }
 
-  return isProteinMode.value ? proteinStore.loading : calorieStore.loading
+  if (isNutritionMode.value) {
+    return nutritionStore.currentLoading
+  }
+
+  return calorieStore.loading
 })
 
 const primarySubmitting = computed(() => {
@@ -37,7 +62,11 @@ const primarySubmitting = computed(() => {
     return weightStore.submittingEntry
   }
 
-  return isProteinMode.value ? proteinStore.submittingEntry : calorieStore.submittingEntry
+  if (isNutritionMode.value) {
+    return nutritionStore.currentSubmitting
+  }
+
+  return calorieStore.submittingEntry
 })
 
 const accentColor = computed(() => {
@@ -45,7 +74,11 @@ const accentColor = computed(() => {
     return 'var(--color-weight-primary)'
   }
 
-  return isProteinMode.value ? 'var(--color-protein-primary)' : 'var(--color-calorie-primary)'
+  if (isNutritionMode.value) {
+    return nutritionAccentColor.value
+  }
+
+  return 'var(--color-calorie-primary)'
 })
 
 const loadingLabel = computed(() => {
@@ -53,7 +86,11 @@ const loadingLabel = computed(() => {
     return 'Loading weight'
   }
 
-  return isProteinMode.value ? 'Loading protein' : 'Loading calories'
+  if (isNutritionMode.value) {
+    return `Loading ${activeNutritionLabel.value.toLowerCase()}`
+  }
+
+  return 'Loading calories'
 })
 
 const unlockStatus = computed(() => calorieStore.unlockStatus)
@@ -67,7 +104,11 @@ const mainCardLabel = computed(() => {
     return "Today's Weight"
   }
 
-  return isProteinMode.value ? 'Protein Today' : 'Calories Available'
+  if (isNutritionMode.value) {
+    return `${activeNutritionLabel.value} Today`
+  }
+
+  return 'Calories Available'
 })
 
 const mainCardValue = computed(() => {
@@ -75,7 +116,11 @@ const mainCardValue = computed(() => {
     return weightStore.todayWeight?.amount.toFixed(1) ?? '-'
   }
 
-  return isProteinMode.value ? formatNumber(proteinStore.totalProtein) : formatNumber(availableCalories.value)
+  if (isNutritionMode.value) {
+    return formatNumber(nutritionStore.currentTotal)
+  }
+
+  return formatNumber(availableCalories.value)
 })
 
 const mainCardDetail = computed(() => {
@@ -83,7 +128,11 @@ const mainCardDetail = computed(() => {
     return weightStore.todayWeight ? 'Latest entry for today' : 'No weight logged today'
   }
 
-  return isProteinMode.value ? 'Running total for today' : 'Available right now'
+  if (isNutritionMode.value) {
+    return `Running total for today in ${activeNutritionUnit.value}`
+  }
+
+  return 'Available right now'
 })
 
 const consumedVsTarget = computed(() => {
@@ -266,13 +315,21 @@ function maybeRefreshUnlockStatus() {
   })
 }
 
+function setNutritionMetric(metric: NutritionMetric) {
+  if (appStore.nutritionMetric === metric) {
+    return
+  }
+
+  appStore.setNutritionMetric(metric)
+}
+
 function formatCountdown(milliseconds: number) {
   const totalSeconds = Math.floor(milliseconds / 1000)
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
 }
 
 function formatNumber(value: number) {
@@ -282,7 +339,66 @@ function formatNumber(value: number) {
 
 <template>
   <div class="calorie-display">
-    <div class="track-grid">
+    <div v-if="isNutritionMode" class="track-grid track-grid--nutrition">
+      <div class="track-card track-card--primary" :style="{ '--card-accent': accentColor }">
+        <div class="track-card-header">
+          <div class="track-card-header-copy">
+            <div class="track-card-label">{{ mainCardLabel }}</div>
+            <div class="track-card-unit">{{ activeNutritionUnit }}</div>
+          </div>
+          <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="track-card-body track-card-body--hero">
+          <div
+            v-if="primaryLoading && !primarySubmitting"
+            class="loading-indicator"
+            role="status"
+            :aria-label="loadingLabel"
+          >
+            <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
+          </div>
+          <div
+            v-else
+            class="track-card-value track-card-value--hero"
+            :class="{ 'track-card-value--submitting': primarySubmitting }"
+            :style="{ color: accentColor }"
+          >
+            {{ mainCardValue }}
+          </div>
+        </div>
+        <div class="track-card-detail">{{ mainCardDetail }}</div>
+      </div>
+
+      <div class="track-card nutrition-summary-card">
+        <div class="track-card-label">Today's Totals</div>
+        <div class="track-card-detail">Tap a nutrient to switch input, accent, and history</div>
+        <div class="nutrition-summary-list">
+          <button
+            v-for="item in nutritionSummaryItems"
+            :key="item.metric"
+            class="nutrition-summary-button"
+            :class="{ active: appStore.nutritionMetric === item.metric }"
+            :style="{ '--metric-accent': item.color }"
+            @click="setNutritionMetric(item.metric)"
+          >
+            <span class="nutrition-summary-button__label">{{ item.label }}</span>
+            <span class="nutrition-summary-button__value">{{ item.value }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="track-grid">
       <div class="track-card track-card--primary" :style="{ '--card-accent': accentColor }">
         <div class="track-card-header">
           <div class="track-card-label">{{ mainCardLabel }}</div>
@@ -300,7 +416,7 @@ function formatNumber(value: number) {
         </div>
         <div class="track-card-body track-card-body--hero">
           <div
-            v-if="primaryLoading && !primarySubmitting && (isWeightMode || isProteinMode || !unlockStatus)"
+            v-if="primaryLoading && !primarySubmitting && (isWeightMode || !unlockStatus)"
             class="loading-indicator"
             role="status"
             :aria-label="loadingLabel"
@@ -342,7 +458,9 @@ function formatNumber(value: number) {
         <div class="track-card-label">Consumed vs Target</div>
         <div class="track-card-body">
           <div class="track-card-value">{{ consumedVsTarget }}</div>
-          <div class="track-card-detail">{{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far</div>
+          <div class="track-card-detail">
+            {{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far
+          </div>
         </div>
       </div>
     </div>
@@ -377,6 +495,11 @@ function formatNumber(value: number) {
   gap: 10px;
 }
 
+.track-grid--nutrition {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .track-card {
   min-width: 0;
   min-height: 0;
@@ -401,6 +524,24 @@ function formatNumber(value: number) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+}
+
+.track-card-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-card-unit {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .track-card-body {
@@ -485,6 +626,48 @@ function formatNumber(value: number) {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.nutrition-summary-card {
+  justify-content: flex-start;
+}
+
+.nutrition-summary-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  overflow: auto;
+}
+
+.nutrition-summary-button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text);
+  padding: 14px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nutrition-summary-button.active {
+  border-color: color-mix(in srgb, var(--metric-accent) 52%, transparent);
+  background: color-mix(in srgb, var(--metric-accent) 16%, transparent);
+}
+
+.nutrition-summary-button__label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.nutrition-summary-button__value {
+  font-size: 16px;
+  color: var(--metric-accent);
+  font-weight: 700;
+}
+
 @media (max-width: 428px) {
   .calorie-display {
     padding-bottom: var(--spacing-sm);
@@ -508,6 +691,15 @@ function formatNumber(value: number) {
 
   .track-card-detail {
     font-size: 11px;
+  }
+
+  .nutrition-summary-button {
+    padding: 12px;
+  }
+
+  .nutrition-summary-button__label,
+  .nutrition-summary-button__value {
+    font-size: 15px;
   }
 }
 
