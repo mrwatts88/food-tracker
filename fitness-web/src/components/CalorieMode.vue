@@ -36,10 +36,19 @@ const trackSelectors: Array<{ metric: EntryMetric; label: string; accentColor: s
 let mediaRecorder: MediaRecorder | null = null
 let mediaStream: MediaStream | null = null
 let recordingChunks: Blob[] = []
-let recordingMimeType = 'audio/webm'
+let recordingMimeType: string | null = null
 let recordingTimeoutId: number | null = null
 let recordingIntervalId: number | null = null
 let recordingStopReason: 'send' | 'cancel' | 'timeout' = 'cancel'
+
+const preferredRecordingMimeTypes = [
+  'audio/mp4;codecs=mp4a.40.2',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+  'audio/ogg'
+]
 
 const keyboardAccentColor = computed(() => {
   if (isNutritionMetric(appStore.activeMetric)) {
@@ -124,14 +133,18 @@ function resetVoiceRecordingState() {
   stopMediaStream()
   mediaRecorder = null
   recordingChunks = []
-  recordingMimeType = 'audio/webm'
+  recordingMimeType = null
   recordingStopReason = 'cancel'
   recordingSecondsRemaining.value = LISTENING_TIMEOUT_SECONDS
 }
 
 function getAudioExtension(mimeType: string) {
+  if (mimeType.includes('m4a') || mimeType.includes('aac')) {
+    return 'm4a'
+  }
+
   if (mimeType.includes('mp4')) {
-    return 'mp4'
+    return 'm4a'
   }
 
   if (mimeType.includes('mpeg')) {
@@ -142,13 +155,25 @@ function getAudioExtension(mimeType: string) {
     return 'wav'
   }
 
+  if (mimeType.includes('ogg')) {
+    return 'ogg'
+  }
+
   return 'webm'
+}
+
+function getPreferredRecordingMimeType() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return null
+  }
+
+  return preferredRecordingMimeTypes.find(mimeType => MediaRecorder.isTypeSupported(mimeType)) ?? null
 }
 
 async function uploadVoiceEntry(blob: Blob) {
   voiceState.value = 'processing'
 
-  const mimeType = blob.type || 'audio/webm'
+  const mimeType = blob.type || recordingMimeType || 'audio/mp4'
   const formData = new FormData()
   formData.set(
     'audio',
@@ -186,18 +211,33 @@ async function startVoiceListening() {
   recordingChunks = []
   recordingStopReason = 'cancel'
   recordingSecondsRemaining.value = LISTENING_TIMEOUT_SECONDS
-  mediaRecorder = new MediaRecorder(mediaStream)
-  recordingMimeType = mediaRecorder.mimeType || 'audio/webm'
+  const preferredMimeType = getPreferredRecordingMimeType()
+
+  mediaRecorder = preferredMimeType
+    ? new MediaRecorder(mediaStream, { mimeType: preferredMimeType })
+    : new MediaRecorder(mediaStream)
+
+  recordingMimeType = mediaRecorder.mimeType || preferredMimeType
 
   mediaRecorder.addEventListener('dataavailable', event => {
     if (event.data.size > 0) {
+      if (!recordingMimeType && event.data.type) {
+        recordingMimeType = event.data.type
+      }
+
       recordingChunks.push(event.data)
     }
   })
 
   mediaRecorder.addEventListener('stop', async () => {
     const stopReason = recordingStopReason
-    const blob = new Blob(recordingChunks, { type: recordingMimeType })
+    const firstChunk = recordingChunks[0]
+    const blob =
+      recordingChunks.length === 1 && firstChunk
+        ? firstChunk
+        : recordingMimeType
+          ? new Blob(recordingChunks, { type: recordingMimeType })
+          : new Blob(recordingChunks)
 
     resetVoiceRecordingState()
 
