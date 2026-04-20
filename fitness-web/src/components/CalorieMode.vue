@@ -351,7 +351,8 @@ async function confirmVoicePreview() {
 
   try {
     await Promise.all(requests)
-    closeVoicePreview()
+    voicePreview.value = null
+    voiceState.value = 'idle'
   } catch (error) {
     console.error('Failed to save voice entry totals:', error)
     voicePreview.value = null
