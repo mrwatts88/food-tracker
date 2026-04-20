@@ -65,7 +65,7 @@ function formatItemTitle(item: VoiceParsePreview['items'][number]) {
 </script>
 
 <template>
-  <div class="modal-overlay" @click="emit('cancel')">
+  <div class="modal-overlay">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
         <div>
