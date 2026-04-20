@@ -1,6 +1,8 @@
 export type Mode = 'calorie' | 'stats'
 export type NutritionMetric = 'protein' | 'sugar' | 'caffeine'
 export type EntryMetric = 'calorie' | 'weight' | NutritionMetric
+export type VoiceMetric = 'calorie' | NutritionMetric
+export type VoiceSessionState = 'idle' | 'listening' | 'processing' | 'preview'
 
 export interface CalorieEntry {
   id: number
@@ -46,4 +48,24 @@ export interface UnlockStatus {
   noBorrowUnlockStreak: number
   timezone: string
   serverNow: string
+}
+
+export interface VoiceEstimate {
+  metric: VoiceMetric
+  amount: number
+}
+
+export interface VoiceParseItem {
+  kind: 'explicit_metric' | 'food_item'
+  rawText: string
+  name?: string
+  quantityText?: string | null
+  estimated: VoiceEstimate[]
+}
+
+export interface VoiceParsePreview {
+  transcript: string
+  items: VoiceParseItem[]
+  totals: Record<VoiceMetric, number>
+  warnings: string[]
 }

@@ -14,6 +14,9 @@ const envSchema = z
     GOAL_WEIGHT: z.coerce.number().positive().default(189),
     GMAIL_ALERT_ADDRESS: z.string().email().optional(),
     GMAIL_ALERT_APP_PASSWORD: z.string().min(1).optional(),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_TRANSCRIBE_MODEL: z.string().default('gpt-4o-mini-transcribe'),
+    OPENAI_PARSE_MODEL: z.string().default('gpt-5.4-mini'),
     CORS_ORIGIN: z.string().optional(),
     PORT: z.coerce.number().int().positive().default(3000)
   })
@@ -39,6 +42,9 @@ export type AppConfig = {
   goalWeight: number
   gmailAlertAddress?: string
   gmailAlertAppPassword?: string
+  openAiApiKey?: string
+  openAiTranscribeModel: string
+  openAiParseModel: string
   corsOrigin?: string
   port: number
 }
@@ -54,6 +60,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     goalWeight: parsed.GOAL_WEIGHT,
     gmailAlertAddress: parsed.GMAIL_ALERT_ADDRESS,
     gmailAlertAppPassword: parsed.GMAIL_ALERT_APP_PASSWORD,
+    openAiApiKey: parsed.OPENAI_API_KEY,
+    openAiTranscribeModel: parsed.OPENAI_TRANSCRIBE_MODEL,
+    openAiParseModel: parsed.OPENAI_PARSE_MODEL,
     corsOrigin: parsed.CORS_ORIGIN,
     port: parsed.PORT
   }

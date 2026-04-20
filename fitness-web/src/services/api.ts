@@ -6,6 +6,7 @@ import type {
   NutritionMetric,
   TDEEResponse,
   UnlockStatus,
+  VoiceParsePreview,
   WeightEntry
 } from '@/types'
 
@@ -41,6 +42,15 @@ export const nutritionApi = {
     api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
   deleteEntry: (metric: NutritionMetric, id: number) =>
     api.delete(`${nutritionEndpoints[metric]}/${id}`)
+}
+
+export const voiceApi = {
+  parseAudio: (formData: FormData) =>
+    api.post<VoiceParsePreview>('/voice/parse', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
 }
 
 // Weight API

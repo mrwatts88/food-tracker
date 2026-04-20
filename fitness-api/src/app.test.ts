@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
+import type OpenAI from 'openai'
 
 import { createApp } from './app'
 import type { AppConfig } from './config'
@@ -15,6 +16,7 @@ import {
   weightEntries
 } from './db/schema'
 import type { AlertEmail, AlertNotifier } from './lib/alerts'
+import { createVoiceParser, type VoiceParser } from './lib/voice'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -27,6 +29,9 @@ const defaultConfig: AppConfig = {
   calorieUnlockSchedule: defaultUnlockSchedule,
   calorieUnlockFallbackGoal: 2000,
   goalWeight: 189,
+  openAiApiKey: 'test-openai-key',
+  openAiTranscribeModel: 'gpt-4o-mini-transcribe',
+  openAiParseModel: 'gpt-5.4-mini',
   port: 3000
 }
 const app = createTestApp()
@@ -43,7 +48,14 @@ afterAll(async () => {
   await client.close()
 })
 
-function createTestApp(options: { now?: Date; config?: Partial<AppConfig>; notifier?: AlertNotifier | null } = {}) {
+function createTestApp(
+  options: {
+    now?: Date
+    config?: Partial<AppConfig>
+    notifier?: AlertNotifier | null
+    voiceParser?: VoiceParser | null
+  } = {}
+) {
   return createApp({
     db,
     now: () => options.now ?? now,
@@ -51,7 +63,8 @@ function createTestApp(options: { now?: Date; config?: Partial<AppConfig>; notif
       ...defaultConfig,
       ...options.config
     },
-    notifier: options.notifier
+    notifier: options.notifier,
+    voiceParser: options.voiceParser
   })
 }
 
@@ -69,6 +82,61 @@ function createNotifierSpy(options: { fail?: boolean } = {}) {
         }
       }
     } satisfies AlertNotifier
+  }
+}
+
+function createAudioFormData(contents = 'audio-bytes') {
+  const formData = new FormData()
+  formData.set('audio', new File([contents], 'voice.webm', { type: 'audio/webm' }))
+  return formData
+}
+
+function createOpenAiVoiceParserMock(options: {
+  transcript: string
+  parsed:
+    | {
+        items: Array<{
+          kind: 'explicit_metric' | 'food_item'
+          rawText: string
+          name?: string
+          quantityText?: string | null
+          estimated: Array<{
+            metric: 'calorie' | 'protein' | 'sugar' | 'caffeine'
+            amount: number
+          }>
+        }>
+        warnings?: string[]
+      }
+    | null
+}) {
+  const openai = {
+    audio: {
+      transcriptions: {
+        create: vi.fn(async () => options.transcript)
+      }
+    },
+    responses: {
+      parse: vi.fn(async () => ({
+        output_parsed:
+          options.parsed === null
+            ? null
+            : {
+                items: options.parsed.items,
+                warnings: options.parsed.warnings ?? []
+              }
+      }))
+    }
+  } as unknown as Pick<OpenAI, 'audio' | 'responses'>
+
+  const parser = createVoiceParser(defaultConfig, { openai })
+
+  if (parser === null) {
+    throw new Error('Expected voice parser to be created in tests')
+  }
+
+  return {
+    parser,
+    openai
   }
 }
 
@@ -131,6 +199,310 @@ describe('fitness api', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ status: 'healthy' })
+  })
+
+  it('parses explicit metric speech without inferring calories', async () => {
+    const { parser, openai } = createOpenAiVoiceParserMock({
+      transcript: 'add 4 grams protein, 20 grams sugar, and 100 mg caffeine',
+      parsed: {
+        items: [
+          {
+            kind: 'explicit_metric',
+            rawText: '4 grams protein',
+            estimated: [{ metric: 'protein', amount: 4 }]
+          },
+          {
+            kind: 'explicit_metric',
+            rawText: '20 grams sugar',
+            estimated: [{ metric: 'sugar', amount: 20 }]
+          },
+          {
+            kind: 'explicit_metric',
+            rawText: '100 mg caffeine',
+            estimated: [{ metric: 'caffeine', amount: 100 }]
+          }
+        ]
+      }
+    })
+    const voiceApp = createTestApp({ voiceParser: parser })
+
+    const response = await voiceApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      transcript: 'add 4 grams protein, 20 grams sugar, and 100 mg caffeine',
+      items: [
+        {
+          kind: 'explicit_metric',
+          rawText: '4 grams protein',
+          quantityText: null,
+          estimated: [{ metric: 'protein', amount: 4 }]
+        },
+        {
+          kind: 'explicit_metric',
+          rawText: '20 grams sugar',
+          quantityText: null,
+          estimated: [{ metric: 'sugar', amount: 20 }]
+        },
+        {
+          kind: 'explicit_metric',
+          rawText: '100 mg caffeine',
+          quantityText: null,
+          estimated: [{ metric: 'caffeine', amount: 100 }]
+        }
+      ],
+      totals: {
+        calorie: 0,
+        protein: 4,
+        sugar: 20,
+        caffeine: 100
+      },
+      warnings: []
+    })
+    expect(openai.audio.transcriptions.create).toHaveBeenCalledWith({
+      file: expect.any(File),
+      model: 'gpt-4o-mini-transcribe',
+      response_format: 'text'
+    })
+    expect(openai.responses.parse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-5.4-mini'
+      })
+    )
+  })
+
+  it('parses explicit calories alongside other direct metrics', async () => {
+    const { parser } = createOpenAiVoiceParserMock({
+      transcript: 'add 300 calories and 10 grams protein',
+      parsed: {
+        items: [
+          {
+            kind: 'explicit_metric',
+            rawText: '300 calories',
+            estimated: [{ metric: 'calorie', amount: 300 }]
+          },
+          {
+            kind: 'explicit_metric',
+            rawText: '10 grams protein',
+            estimated: [{ metric: 'protein', amount: 10 }]
+          }
+        ]
+      }
+    })
+    const voiceApp = createTestApp({ voiceParser: parser })
+
+    const response = await voiceApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      totals: {
+        calorie: 300,
+        protein: 10,
+        sugar: 0,
+        caffeine: 0
+      }
+    })
+  })
+
+  it('does not infer calories from macro-only speech', async () => {
+    const { parser } = createOpenAiVoiceParserMock({
+      transcript: 'add 10 grams protein',
+      parsed: {
+        items: [
+          {
+            kind: 'explicit_metric',
+            rawText: '10 grams protein',
+            estimated: [
+              { metric: 'protein', amount: 10 },
+              { metric: 'calorie', amount: 0 }
+            ]
+          }
+        ]
+      }
+    })
+    const voiceApp = createTestApp({ voiceParser: parser })
+
+    const response = await voiceApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+    const body = (await response.json()) as {
+      totals: Record<'calorie' | 'protein' | 'sugar' | 'caffeine', number>
+      items: Array<{
+        estimated: Array<{ metric: string; amount: number }>
+      }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.totals).toEqual({
+      calorie: 0,
+      protein: 10,
+      sugar: 0,
+      caffeine: 0
+    })
+    expect(body.items[0]?.estimated).toEqual([{ metric: 'protein', amount: 10 }])
+  })
+
+  it('returns estimated totals for food item speech', async () => {
+    const { parser } = createOpenAiVoiceParserMock({
+      transcript: 'add one banana',
+      parsed: {
+        items: [
+          {
+            kind: 'food_item',
+            rawText: 'one banana',
+            name: 'banana',
+            quantityText: 'one',
+            estimated: [
+              { metric: 'calorie', amount: 105 },
+              { metric: 'protein', amount: 1 },
+              { metric: 'sugar', amount: 14 }
+            ]
+          }
+        ]
+      }
+    })
+    const voiceApp = createTestApp({ voiceParser: parser })
+
+    const response = await voiceApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      transcript: 'add one banana',
+      totals: {
+        calorie: 105,
+        protein: 1,
+        sugar: 14,
+        caffeine: 0
+      },
+      items: [
+        {
+          kind: 'food_item',
+          name: 'banana',
+          quantityText: 'one'
+        }
+      ]
+    })
+  })
+
+  it('combines food-derived estimates with explicit metrics', async () => {
+    const { parser } = createOpenAiVoiceParserMock({
+      transcript: 'add a protein bar and 100 mg caffeine',
+      parsed: {
+        items: [
+          {
+            kind: 'food_item',
+            rawText: 'a protein bar',
+            name: 'protein bar',
+            quantityText: 'a',
+            estimated: [
+              { metric: 'calorie', amount: 200 },
+              { metric: 'protein', amount: 20 },
+              { metric: 'sugar', amount: 8 }
+            ]
+          },
+          {
+            kind: 'explicit_metric',
+            rawText: '100 mg caffeine',
+            estimated: [{ metric: 'caffeine', amount: 100 }]
+          }
+        ]
+      }
+    })
+    const voiceApp = createTestApp({ voiceParser: parser })
+
+    const response = await voiceApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      totals: {
+        calorie: 200,
+        protein: 20,
+        sugar: 8,
+        caffeine: 100
+      }
+    })
+  })
+
+  it('returns warnings for empty or unsupported transcripts', async () => {
+    const emptyMock = createOpenAiVoiceParserMock({
+      transcript: '   ',
+      parsed: {
+        items: [],
+        warnings: []
+      }
+    })
+    const emptyApp = createTestApp({ voiceParser: emptyMock.parser })
+
+    const emptyResponse = await emptyApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(emptyResponse.status).toBe(200)
+    await expect(emptyResponse.json()).resolves.toEqual({
+      transcript: '',
+      items: [],
+      totals: {
+        calorie: 0,
+        protein: 0,
+        sugar: 0,
+        caffeine: 0
+      },
+      warnings: ['No speech was detected.']
+    })
+    expect(emptyMock.openai.responses.parse).not.toHaveBeenCalled()
+
+    const unsupportedMock = createOpenAiVoiceParserMock({
+      transcript: 'log my vibes',
+      parsed: {
+        items: [],
+        warnings: ['No nutrition entries were detected from the request.']
+      }
+    })
+    const unsupportedApp = createTestApp({ voiceParser: unsupportedMock.parser })
+
+    const unsupportedResponse = await unsupportedApp.request('/api/voice/parse', {
+      method: 'POST',
+      body: createAudioFormData()
+    })
+
+    expect(unsupportedResponse.status).toBe(200)
+    await expect(unsupportedResponse.json()).resolves.toMatchObject({
+      transcript: 'log my vibes',
+      items: [],
+      totals: {
+        calorie: 0,
+        protein: 0,
+        sugar: 0,
+        caffeine: 0
+      },
+      warnings: ['No nutrition entries were detected from the request.']
+    })
+  })
+
+  it('rejects malformed voice parse uploads', async () => {
+    const response = await app.request('/api/voice/parse', {
+      method: 'POST',
+      body: 'not multipart'
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid multipart form data'
+    })
   })
 
   it('returns the default nutrition goals', async () => {

@@ -24,12 +24,14 @@ import { calculateUnlockStatus } from './lib/calorie-unlock'
 import { getGoalConfig } from './lib/goals'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
+import { createVoiceParser, type VoiceParser } from './lib/voice'
 
 type AppDependencies = {
   db?: Database
   now?: () => Date
   config?: AppConfig
   notifier?: AlertNotifier | null
+  voiceParser?: VoiceParser | null
 }
 
 class ApiError extends Error {
@@ -59,6 +61,8 @@ export function createApp(dependencies: AppDependencies = {}) {
   const app = new Hono().basePath('/api')
   const config = dependencies.config ?? loadConfig()
   const notifier = dependencies.notifier !== undefined ? dependencies.notifier : createAlertNotifier(config)
+  const voiceParser =
+    dependencies.voiceParser !== undefined ? dependencies.voiceParser : createVoiceParser(config)
 
   if (config.corsOrigin) {
     app.use(
@@ -90,6 +94,35 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.notFound(c => c.json({ error: 'Not found' }, 404))
 
   app.get('/health', c => c.json({ status: 'healthy' }))
+
+  app.post('/voice/parse', async c => {
+    if (voiceParser === null) {
+      return jsonError('Voice parsing is not configured', 503)
+    }
+
+    const contentType = c.req.header('content-type') ?? ''
+
+    if (!contentType.toLowerCase().includes('multipart/form-data')) {
+      return jsonError('Invalid multipart form data', 400)
+    }
+
+    let formData: FormData
+
+    try {
+      formData = await c.req.formData()
+    } catch {
+      return jsonError('Invalid multipart form data', 400)
+    }
+
+    const file = formData.get('audio')
+
+    if (!(file instanceof File) || file.size === 0) {
+      return jsonError('audio file is required', 400)
+    }
+
+    const parsed = await voiceParser.parseAudio(file)
+    return c.json(parsed)
+  })
 
   app.get('/calories', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
