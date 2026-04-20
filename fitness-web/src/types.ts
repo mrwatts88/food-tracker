@@ -1,6 +1,6 @@
 export type Mode = 'calorie' | 'stats'
-export type TrackMode = 'calorie' | 'nutrition' | 'weight'
 export type NutritionMetric = 'protein' | 'sugar' | 'caffeine'
+export type EntryMetric = 'calorie' | 'weight' | NutritionMetric
 
 export interface CalorieEntry {
   id: number

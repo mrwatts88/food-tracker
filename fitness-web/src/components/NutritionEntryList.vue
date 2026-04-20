@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { nutritionMetricColorVars, nutritionMetricLabels, nutritionMetricUnits } from '@/lib/nutrition'
+import {
+  isNutritionMetric,
+  nutritionMetricColorVars,
+  nutritionMetricLabels,
+  nutritionMetricUnits
+} from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useNutritionStore } from '@/stores/nutrition'
+import type { NutritionMetric } from '@/types'
 
 const appStore = useAppStore()
 const nutritionStore = useNutritionStore()
 const deletingId = ref<number | null>(null)
 
-const currentMetric = computed(() => appStore.nutritionMetric)
+const currentMetric = computed<NutritionMetric>(() =>
+  isNutritionMetric(appStore.activeMetric) ? appStore.activeMetric : 'protein'
+)
 const currentLabel = computed(() => nutritionMetricLabels[currentMetric.value])
 const currentUnit = computed(() => nutritionMetricUnits[currentMetric.value])
 const currentColor = computed(() => nutritionMetricColorVars[currentMetric.value])

@@ -23,7 +23,7 @@ onMounted(async () => {
 
   if (!weightStore.todayWeight) {
     appStore.setMode('calorie')
-    appStore.setTrackMode('weight')
+    appStore.setActiveMetric('weight')
   }
 })
 </script>

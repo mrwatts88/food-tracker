@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { nutritionMetricColorVars } from '@/lib/nutrition'
+import { isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { TrackMode } from '@/types'
+import type { EntryMetric } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
 
@@ -15,13 +15,20 @@ const calorieStore = useCalorieStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 
-const nutritionAccentColor = computed(() => nutritionMetricColorVars[appStore.nutritionMetric])
+const trackSelectors: Array<{ metric: EntryMetric; label: string; accentColor: string }> = [
+  { metric: 'calorie', label: 'kCals', accentColor: 'var(--color-calorie-primary)' },
+  { metric: 'weight', label: 'Wt', accentColor: 'var(--color-weight-primary)' },
+  { metric: 'protein', label: 'Pro', accentColor: nutritionMetricColorVars.protein },
+  { metric: 'sugar', label: 'Sug', accentColor: nutritionMetricColorVars.sugar },
+  { metric: 'caffeine', label: 'Caff', accentColor: nutritionMetricColorVars.caffeine }
+]
+
 const keyboardAccentColor = computed(() => {
-  if (appStore.trackMode === 'nutrition') {
-    return nutritionAccentColor.value
+  if (isNutritionMetric(appStore.activeMetric)) {
+    return nutritionMetricColorVars[appStore.activeMetric]
   }
 
-  if (appStore.trackMode === 'weight') {
+  if (appStore.activeMetric === 'weight') {
     return 'var(--color-weight-primary)'
   }
 
@@ -29,72 +36,54 @@ const keyboardAccentColor = computed(() => {
 })
 
 async function handleSubmit(amount: number) {
-  if (appStore.trackMode === 'nutrition') {
-    await nutritionStore.addEntry(amount)
+  if (appStore.activeMetric === 'weight') {
+    await weightStore.addEntry(amount)
     return
   }
 
-  if (appStore.trackMode === 'weight') {
-    await weightStore.addEntry(amount)
+  if (isNutritionMetric(appStore.activeMetric)) {
+    await nutritionStore.addEntry(amount, appStore.activeMetric)
     return
   }
 
   await calorieStore.addEntry(amount)
 }
 
-function handleTrackModeChange(trackMode: TrackMode) {
-  if (appStore.trackMode === trackMode) {
+function handleMetricChange(metric: EntryMetric) {
+  if (appStore.activeMetric === metric) {
     return
   }
 
-  appStore.setTrackMode(trackMode)
+  appStore.setActiveMetric(metric)
 }
 </script>
 
 <template>
   <div class="calorie-mode">
     <div class="display-section">
-      <CalorieDisplay :track-mode="appStore.trackMode" />
+      <CalorieDisplay :active-metric="appStore.activeMetric" />
       <div class="track-toggle">
         <button
-          :class="['track-toggle-button', { active: appStore.trackMode === 'calorie' }]"
-          @click="handleTrackModeChange('calorie')"
+          v-for="selector in trackSelectors"
+          :key="selector.metric"
+          :class="['track-toggle-button', { active: appStore.activeMetric === selector.metric }]"
+          :style="{ '--track-accent': selector.accentColor }"
+          @click="handleMetricChange(selector.metric)"
         >
-          Calories
-        </button>
-        <button
-          :class="[
-            'track-toggle-button',
-            'track-toggle-button--nutrition',
-            { active: appStore.trackMode === 'nutrition' }
-          ]"
-          :style="{ '--track-accent': nutritionAccentColor }"
-          @click="handleTrackModeChange('nutrition')"
-        >
-          Nutrition
-        </button>
-        <button
-          :class="[
-            'track-toggle-button',
-            'track-toggle-button--weight',
-            { active: appStore.trackMode === 'weight' }
-          ]"
-          @click="handleTrackModeChange('weight')"
-        >
-          Weight
+          {{ selector.label }}
         </button>
       </div>
     </div>
     <div class="input-section">
       <Keyboard
-        :mode="appStore.trackMode"
+        :mode="appStore.activeMetric"
         :accent-color="keyboardAccentColor"
         :submitting="
-          appStore.trackMode === 'nutrition'
-            ? nutritionStore.currentSubmitting
-            : appStore.trackMode === 'weight'
+          appStore.activeMetric === 'weight'
               ? weightStore.submittingEntry
-              : calorieStore.submittingEntry
+              : isNutritionMetric(appStore.activeMetric)
+                ? nutritionStore.submittingByMetric[appStore.activeMetric]
+                : calorieStore.submittingEntry
         "
         @submit="handleSubmit"
       />
@@ -119,7 +108,8 @@ function handleTrackModeChange(trackMode: TrackMode) {
 }
 
 .track-toggle {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
@@ -133,7 +123,6 @@ function handleTrackModeChange(trackMode: TrackMode) {
 }
 
 .track-toggle-button {
-  flex: 1;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: var(--border-radius);
@@ -143,24 +132,24 @@ function handleTrackModeChange(trackMode: TrackMode) {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .track-toggle-button.active {
-  background: color-mix(in srgb, var(--color-calorie-primary) 18%, transparent);
-  border-color: color-mix(in srgb, var(--color-calorie-primary) 50%, transparent);
-  color: var(--color-calorie-primary);
-}
-
-.track-toggle-button--nutrition.active {
   background: color-mix(in srgb, var(--track-accent) 18%, transparent);
   border-color: color-mix(in srgb, var(--track-accent) 50%, transparent);
   color: var(--track-accent);
 }
 
-.track-toggle-button--weight.active {
-  background: color-mix(in srgb, var(--color-weight-primary) 18%, transparent);
-  border-color: color-mix(in srgb, var(--color-weight-primary) 50%, transparent);
-  color: var(--color-weight-primary);
+@media (max-width: 428px) {
+  .track-toggle {
+    gap: 6px;
+  }
+
+  .track-toggle-button {
+    padding: 10px 6px;
+    font-size: 12px;
+  }
 }
 
 .track-toggle-button:active {

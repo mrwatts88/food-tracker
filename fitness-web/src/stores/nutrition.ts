@@ -2,9 +2,9 @@ import { computed, reactive } from 'vue'
 import { defineStore } from 'pinia'
 
 import { nutritionApi } from '@/services/api'
+import { isNutritionMetric, nutritionMetrics } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import type { NutritionEntry, NutritionGoals, NutritionMetric } from '@/types'
-import { nutritionMetrics } from '@/lib/nutrition'
 
 type MetricEntryMap = Record<NutritionMetric, NutritionEntry[]>
 type MetricFlagMap = Record<NutritionMetric, boolean>
@@ -42,7 +42,9 @@ export const useNutritionStore = defineStore('nutrition', () => {
     caffeine: entriesByMetric.caffeine.reduce((sum, entry) => sum + entry.amount, 0)
   }))
 
-  const currentMetric = computed(() => appStore.nutritionMetric)
+  const currentMetric = computed<NutritionMetric>(() =>
+    isNutritionMetric(appStore.activeMetric) ? appStore.activeMetric : 'protein'
+  )
   const currentEntries = computed(() => entriesByMetric[currentMetric.value])
   const currentTotal = computed(() => totalsByMetric.value[currentMetric.value])
   const currentGoal = computed(() => goalsByMetric[currentMetric.value] ?? null)

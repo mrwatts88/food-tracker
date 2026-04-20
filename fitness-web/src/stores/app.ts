@@ -1,27 +1,18 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { Mode, NutritionMetric, TrackMode } from '@/types'
+import type { EntryMetric, Mode } from '@/types'
 
 export const useAppStore = defineStore('app', () => {
   const mode = ref<Mode>('calorie')
-  const trackMode = ref<TrackMode>('calorie')
-  const nutritionMetric = ref<NutritionMetric>('protein')
+  const activeMetric = ref<EntryMetric>('calorie')
   const isDrawerOpen = ref(false)
 
   function setMode(newMode: Mode) {
     mode.value = newMode
   }
 
-  function setTrackMode(newTrackMode: TrackMode) {
-    if (newTrackMode === 'nutrition' && trackMode.value !== 'nutrition') {
-      nutritionMetric.value = 'protein'
-    }
-
-    trackMode.value = newTrackMode
-  }
-
-  function setNutritionMetric(newNutritionMetric: NutritionMetric) {
-    nutritionMetric.value = newNutritionMetric
+  function setActiveMetric(newActiveMetric: EntryMetric) {
+    activeMetric.value = newActiveMetric
   }
 
   function toggleDrawer() {
@@ -38,12 +29,10 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     mode,
-    trackMode,
-    nutritionMetric,
+    activeMetric,
     isDrawerOpen,
     setMode,
-    setTrackMode,
-    setNutritionMetric,
+    setActiveMetric,
     toggleDrawer,
     closeDrawer,
     openDrawer

@@ -1,4 +1,4 @@
-import type { NutritionMetric } from '@/types'
+import type { EntryMetric, NutritionMetric } from '@/types'
 
 export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine']
 
@@ -18,6 +18,10 @@ export const nutritionMetricColorVars: Record<NutritionMetric, string> = {
   protein: 'var(--color-protein-primary)',
   sugar: 'var(--color-sugar-primary)',
   caffeine: 'var(--color-caffeine-primary)'
+}
+
+export function isNutritionMetric(metric: EntryMetric): metric is NutritionMetric {
+  return nutritionMetrics.includes(metric as NutritionMetric)
 }
 
 export function formatNutritionTotal(metric: NutritionMetric, amount: number) {

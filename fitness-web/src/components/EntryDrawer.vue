@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { nutritionMetricColorVars, nutritionMetricLabels } from '@/lib/nutrition'
+import { isNutritionMetric, nutritionMetricColorVars, nutritionMetricLabels } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import CalorieEntryList from './CalorieEntryList.vue'
 import NutritionEntryList from './NutritionEntryList.vue'
@@ -14,11 +14,11 @@ function handleBackdropClick() {
 }
 
 const trackTitle = computed(() => {
-  if (appStore.trackMode === 'nutrition') {
-    return `Today's ${nutritionMetricLabels[appStore.nutritionMetric]} Entries`
+  if (isNutritionMetric(appStore.activeMetric)) {
+    return `Today's ${nutritionMetricLabels[appStore.activeMetric]} Entries`
   }
 
-  if (appStore.trackMode === 'weight') {
+  if (appStore.activeMetric === 'weight') {
     return 'Weight History'
   }
 
@@ -26,11 +26,11 @@ const trackTitle = computed(() => {
 })
 
 const drawerTitleColor = computed(() => {
-  if (appStore.trackMode === 'nutrition') {
-    return nutritionMetricColorVars[appStore.nutritionMetric]
+  if (isNutritionMetric(appStore.activeMetric)) {
+    return nutritionMetricColorVars[appStore.activeMetric]
   }
 
-  if (appStore.trackMode === 'weight') {
+  if (appStore.activeMetric === 'weight') {
     return 'var(--color-weight-primary)'
   }
 
@@ -58,9 +58,11 @@ const drawerTitleColor = computed(() => {
           </button>
         </div>
         <div class="drawer-body">
-          <CalorieEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'calorie'" />
-          <NutritionEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'nutrition'" />
-          <WeightEntryList v-if="appStore.mode === 'calorie' && appStore.trackMode === 'weight'" />
+          <CalorieEntryList v-if="appStore.mode === 'calorie' && appStore.activeMetric === 'calorie'" />
+          <NutritionEntryList
+            v-if="appStore.mode === 'calorie' && isNutritionMetric(appStore.activeMetric)"
+          />
+          <WeightEntryList v-if="appStore.mode === 'calorie' && appStore.activeMetric === 'weight'" />
         </div>
       </div>
     </div>

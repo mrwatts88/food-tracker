@@ -1,10 +1,10 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import type { TrackMode } from '@/types'
+import type { EntryMetric } from '@/types'
 
 interface Props {
-  mode: TrackMode
+  mode: EntryMetric
   accentColor?: string | null
   submitting?: boolean
 }
