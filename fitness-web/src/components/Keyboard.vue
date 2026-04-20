@@ -125,7 +125,7 @@ function handleKeyDown(event: KeyboardEvent) {
 .input-display {
   font-size: 40px;
   font-weight: 700;
-  text-align: right;
+  text-align: center;
   padding: var(--spacing-sm) var(--spacing-md);
   margin-bottom: var(--spacing-sm);
   background: var(--color-background);
@@ -133,7 +133,7 @@ function handleKeyDown(event: KeyboardEvent) {
   min-height: 60px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   color: var(--color-text);
 }
 

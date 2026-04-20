@@ -93,14 +93,26 @@ const availableCalories = computed(() => {
 
 const mainCardLabel = computed(() => {
   if (isWeightMode.value) {
-    return "Today's Weight"
+    return 'Weight'
   }
 
   if (isNutritionMode.value) {
-    return `${activeNutritionLabel.value} Today`
+    return activeNutritionLabel.value
   }
 
-  return 'Calories Available'
+  return 'Calories'
+})
+
+const mainCardUnit = computed(() => {
+  if (isWeightMode.value) {
+    return 'lbs'
+  }
+
+  if (isNutritionMode.value) {
+    return activeNutritionUnit.value
+  }
+
+  return 'kCals'
 })
 
 const mainCardValue = computed(() => {
@@ -338,7 +350,7 @@ function formatNumber(value: number) {
         <div class="track-card-header">
           <div class="track-card-header-copy">
             <div class="track-card-label">{{ mainCardLabel }}</div>
-            <div v-if="isNutritionMode" class="track-card-unit">{{ activeNutritionUnit }}</div>
+            <div class="track-card-unit">{{ mainCardUnit }}</div>
           </div>
           <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -396,7 +408,7 @@ function formatNumber(value: number) {
       </div>
 
       <div class="track-card">
-        <div class="track-card-label">Consumed vs Target</div>
+        <div class="track-card-label">Consumed / Target</div>
         <div class="track-card-body">
           <div class="track-card-value">{{ consumedVsTarget }}</div>
           <div class="track-card-detail">

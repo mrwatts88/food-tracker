@@ -118,7 +118,11 @@ const chartOptions = computed(() => {
 <style scoped>
 .weight-chart {
   width: 100%;
+  height: 100%;
   padding: 0 var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .chart-label {
@@ -132,6 +136,7 @@ const chartOptions = computed(() => {
 }
 
 .chart-container {
-  height: 200px;
+  flex: 1;
+  min-height: 0;
 }
 </style>

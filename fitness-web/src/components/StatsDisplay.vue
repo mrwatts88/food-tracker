@@ -159,26 +159,26 @@ const closestToGoalDisplay = computed(() => {
 <style scoped>
 .stats-display {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 18px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 0.88fr);
+  gap: 28px;
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-lg);
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .stats-grid {
   width: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .stats-card {
   min-width: 0;
-  min-height: 132px;
+  min-height: 0;
   padding: 16px 14px;
   border-radius: var(--border-radius);
   background:
@@ -249,7 +249,7 @@ const closestToGoalDisplay = computed(() => {
 
 .stats-chart {
   width: 100%;
-  margin-top: 24px;
+  min-height: 0;
 }
 
 @media (min-width: 429px) {
@@ -265,7 +265,6 @@ const closestToGoalDisplay = computed(() => {
 @media (max-width: 360px) {
   .stats-card {
     padding: 12px;
-    min-height: 120px;
   }
 
   .stats-card-label {
