@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 
@@ -14,6 +14,7 @@ import {
   sugarEntries,
   weightEntries
 } from './db/schema'
+import type { AlertEmail, AlertNotifier } from './lib/alerts'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
 const timezone = 'America/Chicago'
@@ -42,15 +43,33 @@ afterAll(async () => {
   await client.close()
 })
 
-function createTestApp(options: { now?: Date; config?: Partial<AppConfig> } = {}) {
+function createTestApp(options: { now?: Date; config?: Partial<AppConfig>; notifier?: AlertNotifier | null } = {}) {
   return createApp({
     db,
     now: () => options.now ?? now,
     config: {
       ...defaultConfig,
       ...options.config
-    }
+    },
+    notifier: options.notifier
   })
+}
+
+function createNotifierSpy(options: { fail?: boolean } = {}) {
+  const sent: AlertEmail[] = []
+
+  return {
+    sent,
+    notifier: {
+      async send(message) {
+        sent.push(message)
+
+        if (options.fail) {
+          throw new Error('SMTP unavailable')
+        }
+      }
+    } satisfies AlertNotifier
+  }
 }
 
 async function clearTrackingData() {
@@ -531,6 +550,81 @@ describe('fitness api', () => {
     })
   })
 
+  it('sends a calorie borrow alert when a post first overdraws from the next unlock', async () => {
+    await clearTrackingData()
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      now: new Date('2026-03-17T15:30:00.000Z'),
+      notifier: notifierSpy.notifier
+    })
+
+    const response = await alertApp.request('/api/calories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 800 })
+    })
+
+    expect(response.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+    expect(notifierSpy.sent[0]).toMatchObject({
+      subject: 'Calorie alert'
+    })
+    expect(notifierSpy.sent[0]?.text).toContain('Overdrawn: 300 calories')
+    expect(notifierSpy.sent[0]?.text).toContain('Next effective unlock: 200 calories')
+  })
+
+  it('sends a calorie daily-limit alert when a post first exceeds the full-day target', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values({
+      amount: 1900,
+      createdAt: new Date('2026-03-17T18:00:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      now: new Date('2026-03-18T03:30:00.000Z'),
+      notifier: notifierSpy.notifier
+    })
+
+    const response = await alertApp.request('/api/calories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 200 })
+    })
+
+    expect(response.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+    expect(notifierSpy.sent[0]).toMatchObject({
+      subject: 'Calorie alert'
+    })
+    expect(notifierSpy.sent[0]?.text).toContain('Over daily target by: 100 calories')
+  })
+
+  it('sends one combined calorie alert when a single post triggers borrow and daily-limit crossings', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values({
+      amount: 500,
+      createdAt: new Date('2026-03-17T14:15:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      now: new Date('2026-03-17T15:30:00.000Z'),
+      notifier: notifierSpy.notifier
+    })
+
+    const response = await alertApp.request('/api/calories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 1600 })
+    })
+
+    expect(response.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+    expect(notifierSpy.sent[0]?.text).toContain('Overdrawn: 1600 calories')
+    expect(notifierSpy.sent[0]?.text).toContain('Over daily target by: 100 calories')
+  })
+
   it('counts a no-borrow streak across multiple completed unlocks and days', async () => {
     await clearTrackingData()
 
@@ -785,6 +879,41 @@ describe('fitness api', () => {
     expect(response.status).toBe(200)
   })
 
+  it('sends a sugar alert only when an entry crosses the daily limit', async () => {
+    await clearTrackingData()
+    await db.insert(sugarEntries).values({
+      amount: 70,
+      createdAt: new Date('2026-03-17T14:00:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      notifier: notifierSpy.notifier
+    })
+
+    const underLimitResponse = await alertApp.request('/api/sugar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 5 })
+    })
+
+    expect(underLimitResponse.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(0)
+
+    const crossingResponse = await alertApp.request('/api/sugar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 10 })
+    })
+
+    expect(crossingResponse.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+    expect(notifierSpy.sent[0]).toMatchObject({
+      subject: 'Sugar limit exceeded'
+    })
+    expect(notifierSpy.sent[0]?.text).toContain('Daily total: 85 g')
+  })
+
   it('creates, lists, and deletes caffeine entries for the current local day', async () => {
     await db.insert(caffeineEntries).values({
       amount: 80,
@@ -826,6 +955,127 @@ describe('fitness api', () => {
     })
 
     expect(response.status).toBe(200)
+  })
+
+  it('sends a caffeine alert only on the first over-limit post for the day', async () => {
+    await clearTrackingData()
+    await db.insert(caffeineEntries).values({
+      amount: 260,
+      createdAt: new Date('2026-03-17T14:00:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      notifier: notifierSpy.notifier
+    })
+
+    const crossingResponse = await alertApp.request('/api/caffeine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 30 })
+    })
+
+    expect(crossingResponse.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+    expect(notifierSpy.sent[0]).toMatchObject({
+      subject: 'Caffeine limit exceeded'
+    })
+    expect(notifierSpy.sent[0]?.text).toContain('Daily total: 290 mg')
+
+    const alreadyOverResponse = await alertApp.request('/api/caffeine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 20 })
+    })
+
+    expect(alreadyOverResponse.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(1)
+  })
+
+  it('does not send alerts for delete routes', async () => {
+    await clearTrackingData()
+    const notifierSpy = createNotifierSpy()
+    const alertApp = createTestApp({
+      notifier: notifierSpy.notifier
+    })
+
+    const [calorieEntry] = await db
+      .insert(calorieEntries)
+      .values({
+        amount: 600,
+        createdAt: now
+      })
+      .returning()
+    const [sugarEntry] = await db
+      .insert(sugarEntries)
+      .values({
+        amount: 90,
+        createdAt: now
+      })
+      .returning()
+
+    expect(calorieEntry).toBeDefined()
+    expect(sugarEntry).toBeDefined()
+
+    const calorieDeleteResponse = await alertApp.request(`/api/calories/${calorieEntry?.id}`, {
+      method: 'DELETE'
+    })
+    const sugarDeleteResponse = await alertApp.request(`/api/sugar/${sugarEntry?.id}`, {
+      method: 'DELETE'
+    })
+
+    expect(calorieDeleteResponse.status).toBe(200)
+    expect(sugarDeleteResponse.status).toBe(200)
+    expect(notifierSpy.sent).toHaveLength(0)
+  })
+
+  it('keeps writes successful when alert sending fails', async () => {
+    await clearTrackingData()
+    await db.insert(sugarEntries).values({
+      amount: 75,
+      createdAt: new Date('2026-03-17T14:00:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy({ fail: true })
+    const alertApp = createTestApp({
+      notifier: notifierSpy.notifier
+    })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      const response = await alertApp.request('/api/sugar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 10 })
+      })
+
+      expect(response.status).toBe(201)
+      expect(notifierSpy.sent).toHaveLength(1)
+
+      const listResponse = await alertApp.request('/api/sugar')
+      const entries = (await listResponse.json()) as Array<{ amount: number }>
+
+      expect(entries.some(entry => entry.amount === 10)).toBe(true)
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
+  })
+
+  it('skips alerts entirely when no notifier is configured', async () => {
+    await clearTrackingData()
+    await db.insert(sugarEntries).values({
+      amount: 75,
+      createdAt: new Date('2026-03-17T14:00:00.000Z')
+    })
+
+    const alertApp = createTestApp()
+    const response = await alertApp.request('/api/sugar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 10 })
+    })
+
+    expect(response.status).toBe(201)
   })
 
   it('calculates TDEE from the rolling calorie and weight windows', async () => {
