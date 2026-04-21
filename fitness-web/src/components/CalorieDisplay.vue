@@ -5,6 +5,7 @@ import {
   isNutritionMetric,
   nutritionMetricColorVars,
   nutritionMetricLabels,
+  nutritionMetrics,
   nutritionMetricUnits
 } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
@@ -12,6 +13,23 @@ import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import type { EntryMetric, NutritionMetric } from '@/types'
+
+type DashboardCard = {
+  key: string
+  label: string
+  value: string
+  detail: string
+  historyMetric?: EntryMetric
+  unit?: string
+  accentColor?: string
+  hero?: boolean
+  emphasizedValue?: boolean
+  compactValue?: boolean
+  detailInBody?: boolean
+  loading?: boolean
+  submitting?: boolean
+  warning?: string | null
+}
 
 const props = defineProps<{
   activeMetric: EntryMetric
@@ -73,18 +91,6 @@ const accentColor = computed(() => {
   return 'var(--color-calorie-primary)'
 })
 
-const loadingLabel = computed(() => {
-  if (isWeightMode.value) {
-    return 'Loading weight'
-  }
-
-  if (isNutritionMode.value) {
-    return `Loading ${activeNutritionLabel.value.toLowerCase()}`
-  }
-
-  return 'Loading calories'
-})
-
 const unlockStatus = computed(() => calorieStore.unlockStatus)
 
 const availableCalories = computed(() => {
@@ -121,9 +127,7 @@ const mainCardValue = computed(() => {
   }
 
   if (isNutritionMode.value) {
-    const current = formatNumber(nutritionStore.currentTotal)
-    const allowed = nutritionStore.currentGoal === null ? '--' : formatNumber(nutritionStore.currentGoal)
-    return `${current}/${allowed}`
+    return formatProgressValue(nutritionStore.currentTotal, nutritionStore.currentGoal)
   }
 
   return formatNumber(availableCalories.value)
@@ -280,6 +284,74 @@ const overdrawMessage = computed(() => {
   )} to ${formatNumber(status.nextEffectiveUnlockCalories)}.`
 })
 
+const overviewCards = computed<DashboardCard[]>(() => [
+  {
+    key: 'overview-primary',
+    label: mainCardLabel.value,
+    unit: mainCardUnit.value,
+    value: mainCardValue.value,
+    detail: mainCardDetail.value,
+    historyMetric: props.activeMetric,
+    accentColor: accentColor.value,
+    hero: true,
+    emphasizedValue: true,
+    compactValue: isNutritionMode.value,
+    loading: showPrimaryLoader.value,
+    submitting: primarySubmitting.value
+  },
+  {
+    key: 'overview-next-unlock',
+    label: 'Next Unlock',
+    value: nextUnlockPrimary.value,
+    detail: nextUnlockSummary.value,
+    warning: overdrawMessage.value
+  },
+  {
+    key: 'overview-streak',
+    label: 'No-Borrow Streak',
+    value: streakSummary.value,
+    detail: 'Completed unlock slots'
+  },
+  {
+    key: 'overview-consumed-target',
+    label: 'Consumed / Target',
+    value: consumedVsTarget.value,
+    detail: `${formatNumber(unlockStatus.value?.unlockedCalories ?? 0)} unlocked so far`
+  }
+])
+
+const nutritionCards = computed<DashboardCard[]>(() => [
+  {
+    key: 'nutrition-calories',
+    label: 'Calories',
+    unit: 'kCals',
+    value: consumedVsTarget.value,
+    detail: 'Total today',
+    historyMetric: 'calorie',
+    accentColor: 'var(--color-calorie-primary)',
+    hero: true,
+    emphasizedValue: false,
+    detailInBody: true,
+    loading: calorieStore.loading && !calorieStore.submittingEntry,
+    submitting: calorieStore.submittingEntry
+  },
+  ...nutritionMetrics.map(metric => ({
+    key: `nutrition-${metric}`,
+    label: nutritionMetricLabels[metric],
+    unit: nutritionMetricUnits[metric],
+    value: formatProgressValue(nutritionStore.totalsByMetric[metric], nutritionStore.goalsByMetric[metric] ?? null),
+    detail: 'Total today',
+    historyMetric: metric,
+    accentColor: nutritionMetricColorVars[metric],
+    loading: nutritionStore.loadingByMetric[metric] && !nutritionStore.submittingByMetric[metric],
+    submitting: nutritionStore.submittingByMetric[metric]
+  }))
+])
+
+const dashboardCards = computed<DashboardCard[]>(() =>
+  appStore.trackDashboardMode === 'nutrition' ? nutritionCards.value : overviewCards.value
+)
+
 watch(
   () => unlockStatus.value?.nextUnlockAt,
   () => {
@@ -329,6 +401,10 @@ function maybeRefreshUnlockStatus() {
   })
 }
 
+function openHistory(metric?: EntryMetric) {
+  appStore.openDrawer(metric)
+}
+
 function formatCountdown(milliseconds: number) {
   const totalSeconds = Math.floor(milliseconds / 1000)
   const hours = Math.floor(totalSeconds / 3600)
@@ -341,81 +417,137 @@ function formatCountdown(milliseconds: number) {
 function formatNumber(value: number) {
   return value.toLocaleString()
 }
+
+function formatProgressValue(current: number, goal: number | null) {
+  const goalValue = goal === null ? '--' : formatNumber(goal)
+  return `${formatNumber(current)} / ${goalValue}`
+}
 </script>
 
 <template>
   <div class="calorie-display">
     <div class="track-grid">
-      <div class="track-card track-card--primary" :style="{ '--card-accent': accentColor }">
-        <div class="track-card-header">
-          <div class="track-card-header-copy">
-            <div class="track-card-label">{{ mainCardLabel }}</div>
-            <div class="track-card-unit">{{ mainCardUnit }}</div>
+      <template v-for="card in dashboardCards" :key="card.key">
+        <div
+          v-if="card.hero"
+          class="track-card track-card--primary"
+          :style="{ '--card-accent': card.accentColor ?? 'var(--color-calorie-primary)' }"
+        >
+          <div class="track-card-header">
+            <div class="track-card-header-copy">
+              <div class="track-card-label">{{ card.label }}</div>
+              <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
+            </div>
+            <button
+              v-if="card.historyMetric"
+              class="history-button"
+              :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+              :aria-label="`Open ${card.label.toLowerCase()} history`"
+              :title="`Open ${card.label.toLowerCase()} history`"
+              @click="openHistory(card.historyMetric)"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+                />
+              </svg>
+            </button>
           </div>
-          <button class="history-button" :style="{ color: accentColor }" @click="appStore.openDrawer">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-              />
-            </svg>
-          </button>
+          <div class="track-card-body track-card-body--hero">
+            <div
+              v-if="card.loading"
+              class="loading-indicator"
+              role="status"
+              :aria-label="`Loading ${card.label.toLowerCase()}`"
+            >
+              <span
+                class="loading-spinner"
+                :style="{ '--spinner-color': card.accentColor ?? 'var(--color-calorie-primary)' }"
+              ></span>
+            </div>
+            <div
+              v-else
+              class="track-card-value"
+              :class="{
+                'track-card-value--hero': card.emphasizedValue,
+                'track-card-value--submitting': card.submitting,
+                'track-card-value--hero-compact': card.compactValue
+              }"
+              :style="{ color: card.accentColor }"
+            >
+              {{ card.value }}
+            </div>
+            <div v-if="card.detailInBody" class="track-card-detail">{{ card.detail }}</div>
+            <div v-if="card.detailInBody && card.warning" class="track-card-detail track-card-detail--warning">
+              {{ card.warning }}
+            </div>
+          </div>
+          <div v-if="!card.detailInBody" class="track-card-detail">{{ card.detail }}</div>
+          <div v-if="!card.detailInBody && card.warning" class="track-card-detail track-card-detail--warning">
+            {{ card.warning }}
+          </div>
         </div>
-        <div class="track-card-body track-card-body--hero">
-          <div
-            v-if="showPrimaryLoader"
-            class="loading-indicator"
-            role="status"
-            :aria-label="loadingLabel"
-          >
-            <span class="loading-spinner" :style="{ '--spinner-color': accentColor }"></span>
-          </div>
-          <div
-            v-else
-            class="track-card-value track-card-value--hero"
-            :class="{
-              'track-card-value--submitting': primarySubmitting,
-              'track-card-value--hero-compact': isNutritionMode
-            }"
-            :style="{ color: accentColor }"
-          >
-            {{ mainCardValue }}
-          </div>
-        </div>
-        <div class="track-card-detail">{{ mainCardDetail }}</div>
-      </div>
 
-      <div class="track-card">
-        <div class="track-card-label">Next Unlock</div>
-        <div class="track-card-body">
-          <div class="track-card-value">{{ nextUnlockPrimary }}</div>
-          <div class="track-card-detail">{{ nextUnlockSummary }}</div>
-          <div v-if="overdrawMessage" class="track-card-detail track-card-detail--warning">
-            {{ overdrawMessage }}
+        <div
+          v-else
+          :class="['track-card', { 'track-card--accented': Boolean(card.accentColor) }]"
+          :style="card.accentColor ? { '--card-accent': card.accentColor } : undefined"
+        >
+          <div class="track-card-header">
+            <div class="track-card-header-copy">
+              <div class="track-card-label">{{ card.label }}</div>
+              <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
+            </div>
+            <button
+              v-if="card.historyMetric"
+              class="history-button"
+              :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+              :aria-label="`Open ${card.label.toLowerCase()} history`"
+              :title="`Open ${card.label.toLowerCase()} history`"
+              @click="openHistory(card.historyMetric)"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="track-card-body">
+            <div
+              v-if="card.loading"
+              class="loading-indicator loading-indicator--compact"
+              role="status"
+              :aria-label="`Loading ${card.label.toLowerCase()}`"
+            >
+              <span
+                class="loading-spinner"
+                :style="{ '--spinner-color': card.accentColor ?? 'var(--color-calorie-primary)' }"
+              ></span>
+            </div>
+            <div
+              v-else
+              class="track-card-value"
+              :class="{ 'track-card-value--submitting': card.submitting }"
+              :style="{ color: card.accentColor ?? 'var(--color-text)' }"
+            >
+              {{ card.value }}
+            </div>
+            <div class="track-card-detail">{{ card.detail }}</div>
+            <div v-if="card.warning" class="track-card-detail track-card-detail--warning">
+              {{ card.warning }}
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="track-card">
-        <div class="track-card-label">No-Borrow Streak</div>
-        <div class="track-card-body">
-          <div class="track-card-value">{{ streakSummary }}</div>
-          <div class="track-card-detail">Completed unlock slots</div>
-        </div>
-      </div>
-
-      <div class="track-card">
-        <div class="track-card-label">Consumed / Target</div>
-        <div class="track-card-body">
-          <div class="track-card-value">{{ consumedVsTarget }}</div>
-          <div class="track-card-detail">
-            {{ formatNumber(unlockStatus?.unlockedCalories ?? 0) }} unlocked so far
-          </div>
-        </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -461,7 +593,8 @@ function formatNumber(value: number) {
   gap: 10px;
 }
 
-.track-card--primary {
+.track-card--primary,
+.track-card--accented {
   border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card-accent) 14%, transparent), var(--color-surface));
@@ -527,7 +660,7 @@ function formatNumber(value: number) {
 }
 
 .track-card-value--hero-compact {
-  font-size: clamp(26px, 5.9vw, 36px);
+  font-size: clamp(24px, 5.4vw, 34px);
 }
 
 .track-card-value--submitting {
@@ -552,6 +685,11 @@ function formatNumber(value: number) {
   justify-content: flex-start;
 }
 
+.loading-indicator--compact {
+  min-height: 42px;
+  min-width: 42px;
+}
+
 .loading-spinner {
   width: 26px;
   height: 26px;
@@ -562,19 +700,21 @@ function formatNumber(value: number) {
 }
 
 .history-button {
-  flex-shrink: 0;
-  padding: 8px;
-  background: var(--color-surface);
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 8px;
+  background: var(--color-surface);
   display: flex;
   align-items: center;
-  transition: all 0.2s ease;
 }
 
 .history-button:active {
   transform: scale(0.98);
+}
+
+.history-button:active {
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -600,7 +740,7 @@ function formatNumber(value: number) {
   }
 
   .track-card-value--hero-compact {
-    font-size: clamp(22px, 6.3vw, 30px);
+    font-size: clamp(20px, 5.8vw, 28px);
   }
 
   .track-card-detail {

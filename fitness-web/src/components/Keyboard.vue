@@ -51,6 +51,14 @@ function handleBackspace() {
   currentInput.value = chars.join('')
 }
 
+function handleClearInput() {
+  if (!hasInput.value) {
+    return
+  }
+
+  currentInput.value = ''
+}
+
 function handleInsertDivider() {
   if (props.submitting || !showsDividerAction.value) {
     return
@@ -108,7 +116,18 @@ function handleKeyDown(event: KeyboardEvent) {
 
 <template>
   <div class="keyboard">
-    <div class="input-display">{{ displayValue }}</div>
+    <div class="input-display" :class="{ 'has-clear-button': hasInput }">
+      <span class="input-display-value">{{ displayValue }}</span>
+      <button
+        v-if="hasInput"
+        type="button"
+        class="input-clear-button"
+        aria-label="Clear input"
+        @click="handleClearInput"
+      >
+        ×
+      </button>
+    </div>
     <div class="keyboard-grid">
       <button
         v-for="num in [1, 2, 3, 4, 5, 6, 7, 8, 9]"
@@ -150,6 +169,7 @@ function handleKeyDown(event: KeyboardEvent) {
 }
 
 .input-display {
+  position: relative;
   font-size: 40px;
   font-weight: 700;
   text-align: center;
@@ -162,6 +182,36 @@ function handleKeyDown(event: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   color: var(--color-text);
+}
+
+.input-display.has-clear-button {
+  padding-left: calc(var(--spacing-md) + 44px);
+  padding-right: calc(var(--spacing-md) + 44px);
+}
+
+.input-display-value {
+  line-height: 1;
+}
+
+.input-clear-button {
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-sm);
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  border: none;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.input-clear-button:active {
+  background: rgba(239, 68, 68, 0.22);
+  transform: translateY(-50%) scale(0.95);
 }
 
 .keyboard-grid {

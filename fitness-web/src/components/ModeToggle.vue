@@ -5,6 +5,12 @@ import type { Mode } from '@/types'
 const appStore = useAppStore()
 
 function handleModeChange(mode: Mode) {
+  if (mode === 'calorie' && appStore.mode === 'calorie') {
+    appStore.toggleTrackDashboardMode()
+    appStore.closeDrawer()
+    return
+  }
+
   appStore.setMode(mode)
   appStore.closeDrawer()
 }

@@ -8,17 +8,18 @@ import NutritionEntryList from './NutritionEntryList.vue'
 import WeightEntryList from './WeightEntryList.vue'
 
 const appStore = useAppStore()
+const drawerMetric = computed(() => appStore.drawerMetric ?? appStore.activeMetric)
 
 function handleBackdropClick() {
   appStore.closeDrawer()
 }
 
 const trackTitle = computed(() => {
-  if (isNutritionMetric(appStore.activeMetric)) {
-    return `Today's ${nutritionMetricLabels[appStore.activeMetric]} Entries`
+  if (isNutritionMetric(drawerMetric.value)) {
+    return `Today's ${nutritionMetricLabels[drawerMetric.value]} Entries`
   }
 
-  if (appStore.activeMetric === 'weight') {
+  if (drawerMetric.value === 'weight') {
     return 'Weight History'
   }
 
@@ -26,11 +27,11 @@ const trackTitle = computed(() => {
 })
 
 const drawerTitleColor = computed(() => {
-  if (isNutritionMetric(appStore.activeMetric)) {
-    return nutritionMetricColorVars[appStore.activeMetric]
+  if (isNutritionMetric(drawerMetric.value)) {
+    return nutritionMetricColorVars[drawerMetric.value]
   }
 
-  if (appStore.activeMetric === 'weight') {
+  if (drawerMetric.value === 'weight') {
     return 'var(--color-weight-primary)'
   }
 
@@ -58,11 +59,9 @@ const drawerTitleColor = computed(() => {
           </button>
         </div>
         <div class="drawer-body">
-          <CalorieEntryList v-if="appStore.mode === 'calorie' && appStore.activeMetric === 'calorie'" />
-          <NutritionEntryList
-            v-if="appStore.mode === 'calorie' && isNutritionMetric(appStore.activeMetric)"
-          />
-          <WeightEntryList v-if="appStore.mode === 'calorie' && appStore.activeMetric === 'weight'" />
+          <CalorieEntryList v-if="appStore.mode === 'calorie' && drawerMetric === 'calorie'" />
+          <NutritionEntryList v-if="appStore.mode === 'calorie' && isNutritionMetric(drawerMetric)" />
+          <WeightEntryList v-if="appStore.mode === 'calorie' && drawerMetric === 'weight'" />
         </div>
       </div>
     </div>

@@ -11,22 +11,25 @@ import {
 import { useAppStore } from '@/stores/app'
 import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
-import type { NutritionMetric } from '@/types'
+import type { EntryMetric, NutritionMetric } from '@/types'
 
 const appStore = useAppStore()
 const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const deletingId = ref<number | null>(null)
 
-const currentMetric = computed<NutritionMetric>(() =>
-  isNutritionMetric(appStore.activeMetric) ? appStore.activeMetric : 'protein'
-)
+const drawerTargetMetric = computed<EntryMetric>(() => appStore.drawerMetric ?? appStore.activeMetric)
+const currentMetric = computed<NutritionMetric>(() => {
+  const metric = drawerTargetMetric.value
+  return isNutritionMetric(metric) ? metric : 'protein'
+})
 const currentLabel = computed(() => nutritionMetricLabels[currentMetric.value])
 const currentUnit = computed(() => nutritionMetricUnits[currentMetric.value])
 const currentColor = computed(() => nutritionMetricColorVars[currentMetric.value])
+const currentEntries = computed(() => nutritionStore.entriesByMetric[currentMetric.value])
 
 const historyItems = computed(() =>
-  buildHistoryListItems(nutritionStore.currentEntries, entryDividerStore.entries)
+  buildHistoryListItems(currentEntries.value, entryDividerStore.entries)
 )
 
 async function handleDelete(id: number) {
