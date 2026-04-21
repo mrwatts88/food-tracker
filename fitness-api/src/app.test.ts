@@ -9,6 +9,7 @@ import { readMigrationFiles } from './db/run-migrations'
 import {
   caffeineEntries,
   calorieEntries,
+  entryDividers,
   nutritionGoals,
   proteinEntries,
   schema,
@@ -145,6 +146,7 @@ async function clearTrackingData() {
   await db.delete(proteinEntries)
   await db.delete(sugarEntries)
   await db.delete(caffeineEntries)
+  await db.delete(entryDividers)
   await db.delete(weightEntries)
 }
 
@@ -618,6 +620,177 @@ describe('fitness api', () => {
     })
 
     expect(deleteResponse.status).toBe(200)
+  })
+
+  it('creates and lists shared entry dividers for the current local day in descending order', async () => {
+    await clearTrackingData()
+    await db.insert(entryDividers).values([
+      {
+        createdAt: new Date('2026-03-17T04:59:59.000Z')
+      },
+      {
+        createdAt: new Date('2026-03-17T16:30:00.000Z')
+      }
+    ])
+
+    const dividerApp = createTestApp({
+      now: new Date('2026-03-17T20:15:00.000Z')
+    })
+
+    const createResponse = await dividerApp.request('/api/entry-dividers', {
+      method: 'POST'
+    })
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toMatchObject({
+      createdAt: '2026-03-17 15:15:00'
+    })
+
+    const listResponse = await dividerApp.request('/api/entry-dividers')
+    const dividers = (await listResponse.json()) as Array<{
+      id: number
+      createdAt: string
+    }>
+
+    expect(listResponse.status).toBe(200)
+    expect(dividers).toHaveLength(2)
+    expect(dividers.map(divider => divider.createdAt)).toEqual([
+      '2026-03-17 15:15:00',
+      '2026-03-17 11:30:00'
+    ])
+  })
+
+  it('does not change calorie unlock status when inserting a divider', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values({
+      amount: 300,
+      createdAt: new Date('2026-03-17T15:15:00.000Z')
+    })
+
+    const dividerApp = createTestApp({
+      now: new Date('2026-03-17T17:30:00.000Z')
+    })
+
+    const beforeResponse = await dividerApp.request('/api/calories/unlock-status')
+    const beforeBody = (await beforeResponse.json()) as {
+      consumedCalories: number
+      unlockedCalories: number
+      availableCalories: number
+      overdrawCalories: number
+      nextScheduledUnlockCalories: number
+      nextEffectiveUnlockCalories: number
+      noBorrowUnlockStreak: number
+    }
+
+    expect(beforeResponse.status).toBe(200)
+
+    const createResponse = await dividerApp.request('/api/entry-dividers', {
+      method: 'POST'
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const afterResponse = await dividerApp.request('/api/calories/unlock-status')
+    const afterBody = (await afterResponse.json()) as typeof beforeBody
+
+    expect(afterResponse.status).toBe(200)
+    expect(afterBody).toMatchObject(beforeBody)
+  })
+
+  it('auto-inserts a divider when the latest tracked item across metrics is more than 10 minutes earlier', async () => {
+    await clearTrackingData()
+    await db.insert(proteinEntries).values({
+      amount: 35,
+      createdAt: new Date('2026-03-17T15:00:00.000Z')
+    })
+
+    const calorieApp = createTestApp({
+      now: new Date('2026-03-17T15:15:01.000Z')
+    })
+
+    const createResponse = await calorieApp.request('/api/calories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 220 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const dividerResponse = await calorieApp.request('/api/entry-dividers')
+    const dividers = (await dividerResponse.json()) as Array<{
+      id: number
+      createdAt: string
+    }>
+
+    expect(dividerResponse.status).toBe(200)
+    expect(dividers).toHaveLength(1)
+    expect(dividers[0]).toMatchObject({
+      createdAt: '2026-03-17 10:15:01'
+    })
+  })
+
+  it('does not auto-insert a divider when the latest tracked item is within 10 minutes', async () => {
+    await clearTrackingData()
+    await db.insert(sugarEntries).values({
+      amount: 18,
+      createdAt: new Date('2026-03-17T15:06:00.000Z')
+    })
+
+    const caffeineApp = createTestApp({
+      now: new Date('2026-03-17T15:15:00.000Z')
+    })
+
+    const createResponse = await caffeineApp.request('/api/caffeine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 120 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const dividerResponse = await caffeineApp.request('/api/entry-dividers')
+    const dividers = (await dividerResponse.json()) as Array<{
+      id: number
+      createdAt: string
+    }>
+
+    expect(dividerResponse.status).toBe(200)
+    expect(dividers).toEqual([])
+  })
+
+  it('does not auto-insert a second divider when a recent manual divider is the latest tracked item', async () => {
+    await clearTrackingData()
+    await db.insert(calorieEntries).values({
+      amount: 400,
+      createdAt: new Date('2026-03-17T15:00:00.000Z')
+    })
+    await db.insert(entryDividers).values({
+      createdAt: new Date('2026-03-17T15:14:30.000Z')
+    })
+
+    const sugarApp = createTestApp({
+      now: new Date('2026-03-17T15:20:00.000Z')
+    })
+
+    const createResponse = await sugarApp.request('/api/sugar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 12 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const dividerResponse = await sugarApp.request('/api/entry-dividers')
+    const dividers = (await dividerResponse.json()) as Array<{
+      id: number
+      createdAt: string
+    }>
+
+    expect(dividerResponse.status).toBe(200)
+    expect(dividers).toHaveLength(1)
+    expect(dividers[0]).toMatchObject({
+      createdAt: '2026-03-17 10:14:30'
+    })
   })
 
   it('treats deleting a missing calorie entry as a success', async () => {
@@ -1206,6 +1379,54 @@ describe('fitness api', () => {
     })
 
     expect(response.status).toBe(200)
+  })
+
+  it('does not change nutrition entries or trigger alerts when inserting a divider', async () => {
+    await clearTrackingData()
+    await db.insert(proteinEntries).values({
+      amount: 40,
+      createdAt: new Date('2026-03-17T15:00:00.000Z')
+    })
+    await db.insert(sugarEntries).values({
+      amount: 18,
+      createdAt: new Date('2026-03-17T15:05:00.000Z')
+    })
+    await db.insert(caffeineEntries).values({
+      amount: 120,
+      createdAt: new Date('2026-03-17T15:10:00.000Z')
+    })
+
+    const notifierSpy = createNotifierSpy()
+    const dividerApp = createTestApp({
+      notifier: notifierSpy.notifier
+    })
+
+    const beforeProteinResponse = await dividerApp.request('/api/protein')
+    const beforeSugarResponse = await dividerApp.request('/api/sugar')
+    const beforeCaffeineResponse = await dividerApp.request('/api/caffeine')
+
+    const beforeProtein = (await beforeProteinResponse.json()) as Array<{ amount: number; createdAt: string }>
+    const beforeSugar = (await beforeSugarResponse.json()) as Array<{ amount: number; createdAt: string }>
+    const beforeCaffeine = (await beforeCaffeineResponse.json()) as Array<{ amount: number; createdAt: string }>
+
+    const createResponse = await dividerApp.request('/api/entry-dividers', {
+      method: 'POST'
+    })
+
+    expect(createResponse.status).toBe(201)
+    expect(notifierSpy.sent).toHaveLength(0)
+
+    const afterProteinResponse = await dividerApp.request('/api/protein')
+    const afterSugarResponse = await dividerApp.request('/api/sugar')
+    const afterCaffeineResponse = await dividerApp.request('/api/caffeine')
+
+    expect(afterProteinResponse.status).toBe(200)
+    expect(afterSugarResponse.status).toBe(200)
+    expect(afterCaffeineResponse.status).toBe(200)
+    await expect(afterProteinResponse.json()).resolves.toEqual(beforeProtein)
+    await expect(afterSugarResponse.json()).resolves.toEqual(beforeSugar)
+    await expect(afterCaffeineResponse.json()).resolves.toEqual(beforeCaffeine)
+    await clearTrackingData()
   })
 
   it('creates, lists, and deletes sugar entries for the current local day', async () => {

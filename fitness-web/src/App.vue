@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
+import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import ModeToggle from '@/components/ModeToggle.vue'
@@ -11,12 +12,14 @@ import StatsMode from './components/StatsMode.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
+const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 
 onMounted(async () => {
   await Promise.all([
     calorieStore.refreshData(),
+    entryDividerStore.fetchEntries(),
     nutritionStore.refreshData(),
     weightStore.fetchEntries()
   ])

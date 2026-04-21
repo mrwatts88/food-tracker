@@ -24,6 +24,11 @@ export const caffeineEntries = pgTable('caffeine_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const entryDividers = pgTable('entry_dividers', {
+  id: serial('id').primaryKey(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const nutritionGoals = pgTable('nutrition_goals', {
   metric: text('metric').primaryKey(),
   amount: integer('amount').notNull()
@@ -39,6 +44,7 @@ export const schema = {
   proteinEntries,
   sugarEntries,
   caffeineEntries,
+  entryDividers,
   nutritionGoals,
   weightEntries
 }

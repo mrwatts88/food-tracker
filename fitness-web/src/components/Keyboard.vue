@@ -14,10 +14,13 @@ const props = withDefaults(defineProps<Props>(), {
   submitting: false
 })
 const emit = defineEmits<{
+  'insert-divider': []
   submit: [value: number]
 }>()
 
 const currentInput = ref('')
+const hasInput = computed(() => currentInput.value.length > 0)
+const showsDividerAction = computed(() => props.mode !== 'weight' && !hasInput.value)
 
 const displayValue = computed(() => {
   if (props.mode === 'weight' && currentInput.value.length > 0) {
@@ -33,18 +36,27 @@ const displayValue = computed(() => {
 })
 
 function handleNumberClick(num: number) {
-  if (currentInput.value === "0") {
-    currentInput.value = num.toString();
-  } else if (currentInput.value.length < 4) {
-    // Limit input length
+  if (currentInput.value.length < 4) {
     currentInput.value += num.toString()
   }
 }
 
 function handleBackspace() {
-  const chars = currentInput.value.split("");
-  chars.pop();
-  currentInput.value = chars.join("");
+  if (!hasInput.value) {
+    return
+  }
+
+  const chars = currentInput.value.split('')
+  chars.pop()
+  currentInput.value = chars.join('')
+}
+
+function handleInsertDivider() {
+  if (props.submitting || !showsDividerAction.value) {
+    return
+  }
+
+  emit('insert-divider')
 }
 
 function handleSubmit() {
@@ -76,20 +88,20 @@ const primaryColor = computed(() => {
 })
 
 onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown);
-});
+  window.addEventListener('keydown', handleKeyDown)
+})
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-});
+  window.removeEventListener('keydown', handleKeyDown)
+})
 
 function handleKeyDown(event: KeyboardEvent) {
-  if (event.key in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]) {
-    handleNumberClick(Number.parseInt(event.key));
-  } else if (event.key === "Backspace") {
-    handleBackspace();
-  } else if (event.key == "Enter") {
-    handleSubmit();
+  if (['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].includes(event.key)) {
+    handleNumberClick(Number.parseInt(event.key, 10))
+  } else if (event.key === 'Backspace') {
+    handleBackspace()
+  } else if (event.key === 'Enter') {
+    handleSubmit()
   }
 }
 </script>
@@ -98,10 +110,25 @@ function handleKeyDown(event: KeyboardEvent) {
   <div class="keyboard">
     <div class="input-display">{{ displayValue }}</div>
     <div class="keyboard-grid">
-      <button v-for="num in [1, 2, 3, 4, 5, 6, 7, 8, 9]" :key="num" class="key-button" @click="handleNumberClick(num)">
+      <button
+        v-for="num in [1, 2, 3, 4, 5, 6, 7, 8, 9]"
+        :key="num"
+        class="key-button"
+        @click="handleNumberClick(num)"
+      >
         {{ num }}
       </button>
-      <button class="key-button key-clear" @click="handleBackspace">←</button>
+      <button
+        v-if="showsDividerAction"
+        class="key-button key-divider"
+        :style="{ background: primaryColor }"
+        :disabled="submitting"
+        @click="handleInsertDivider"
+      >
+        <span v-if="submitting" class="loading-spinner divider-spinner"></span>
+        <span v-else>BINK</span>
+      </button>
+      <button v-else class="key-button key-clear" @click="handleBackspace">←</button>
       <button class="key-button" @click="handleNumberClick(0)">0</button>
       <button
         class="key-button key-submit"
@@ -170,6 +197,24 @@ function handleKeyDown(event: KeyboardEvent) {
   background: #dc2626;
 }
 
+.key-divider {
+  color: white;
+}
+
+.key-divider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.key-divider:active {
+  opacity: 0.8;
+}
+
+.key-divider:disabled:active {
+  transform: none;
+  opacity: 0.5;
+}
+
 .key-submit {
   color: white;
 }
@@ -195,6 +240,11 @@ function handleKeyDown(event: KeyboardEvent) {
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.divider-spinner {
+  border-color: rgba(249, 250, 251, 0.25);
+  border-top-color: currentColor;
 }
 
 @keyframes spin {

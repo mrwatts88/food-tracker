@@ -21,6 +21,25 @@ export interface NutritionEntry {
   createdAt: string // YYYY-MM-DD HH:MM:SS
 }
 
+export interface EntryDivider {
+  id: number
+  createdAt: string // YYYY-MM-DD HH:MM:SS
+}
+
+export type HistoryListItem =
+  | {
+      type: 'entry'
+      id: string
+      createdAt: string
+      entry: CalorieEntry | NutritionEntry
+    }
+  | {
+      type: 'divider'
+      id: string
+      createdAt: string
+      divider: EntryDivider
+    }
+
 export type NutritionGoals = Record<NutritionMetric, number>
 
 export interface GoalConfigResponse extends NutritionGoals {

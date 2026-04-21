@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, max } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { z } from 'zod'
@@ -8,6 +8,7 @@ import { getDatabase, type Database } from './db/client'
 import {
   caffeineEntries,
   calorieEntries,
+  entryDividers,
   nutritionGoals,
   proteinEntries,
   sugarEntries,
@@ -124,6 +125,45 @@ export function createApp(dependencies: AppDependencies = {}) {
     return c.json(parsed)
   })
 
+  app.get('/entry-dividers', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const today = getTodayBounds(runtime.now(), runtime.config.appTimezone)
+
+    const dividers = await runtime.db
+      .select()
+      .from(entryDividers)
+      .where(gte(entryDividers.createdAt, today.startUtc))
+      .orderBy(desc(entryDividers.createdAt), desc(entryDividers.id))
+
+    return c.json(
+      dividers.map(divider => ({
+        id: divider.id,
+        createdAt: formatTimestamp(divider.createdAt, runtime.config.appTimezone)
+      }))
+    )
+  })
+
+  app.post('/entry-dividers', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+
+    const [divider] = await runtime.db
+      .insert(entryDividers)
+      .values({
+        createdAt: runtime.now()
+      })
+      .returning()
+
+    const createdDivider = assertFound(divider, 'Failed to create entry divider')
+
+    return c.json(
+      {
+        id: createdDivider.id,
+        createdAt: formatTimestamp(createdDivider.createdAt, runtime.config.appTimezone)
+      },
+      201
+    )
+  })
+
   app.get('/calories', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     const today = getTodayBounds(runtime.now(), runtime.config.appTimezone)
@@ -175,6 +215,8 @@ export function createApp(dependencies: AppDependencies = {}) {
             fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
             calorieDeficit: (await getGoalConfig(runtime.db)).calorieDeficit
           })
+
+    await insertAutoDividerIfNeeded(runtime.db, createdAt, runtime.config.appTimezone)
 
     const [entry] = await runtime.db
       .insert(calorieEntries)
@@ -353,6 +395,8 @@ function registerNutritionEntryRoutes(
       limit = goalConfig[alertMetric]
     }
 
+    await insertAutoDividerIfNeeded(runtime.db, createdAt, runtime.config.appTimezone)
+
     const [entry] = await runtime.db
       .insert(table)
       .values({
@@ -454,6 +498,77 @@ async function getDailyEntryTotal(db: Database, table: AmountEntryTable, now: Da
     .where(and(gte(table.createdAt, today.startUtc), lte(table.createdAt, today.endUtc)))
 
   return entries.reduce((sum, entry) => sum + entry.amount, 0)
+}
+
+async function insertAutoDividerIfNeeded(db: Database, createdAt: Date, timezone: string) {
+  const latestActivityAt = await getLatestTrackedActivityAt(db, createdAt, timezone)
+
+  if (latestActivityAt === null) {
+    return
+  }
+
+  const gapInMilliseconds = createdAt.getTime() - latestActivityAt.getTime()
+
+  if (gapInMilliseconds <= 10 * 60 * 1000) {
+    return
+  }
+
+  await db.insert(entryDividers).values({
+    createdAt
+  })
+}
+
+async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: string) {
+  const today = getTodayBounds(now, timezone)
+
+  const [
+    calorieResult,
+    proteinResult,
+    sugarResult,
+    caffeineResult,
+    dividerResult
+  ] = await Promise.all([
+    db
+      .select({ createdAt: max(calorieEntries.createdAt) })
+      .from(calorieEntries)
+      .where(and(gte(calorieEntries.createdAt, today.startUtc), lte(calorieEntries.createdAt, now))),
+    db
+      .select({ createdAt: max(proteinEntries.createdAt) })
+      .from(proteinEntries)
+      .where(and(gte(proteinEntries.createdAt, today.startUtc), lte(proteinEntries.createdAt, now))),
+    db
+      .select({ createdAt: max(sugarEntries.createdAt) })
+      .from(sugarEntries)
+      .where(and(gte(sugarEntries.createdAt, today.startUtc), lte(sugarEntries.createdAt, now))),
+    db
+      .select({ createdAt: max(caffeineEntries.createdAt) })
+      .from(caffeineEntries)
+      .where(and(gte(caffeineEntries.createdAt, today.startUtc), lte(caffeineEntries.createdAt, now))),
+    db
+      .select({ createdAt: max(entryDividers.createdAt) })
+      .from(entryDividers)
+      .where(and(gte(entryDividers.createdAt, today.startUtc), lte(entryDividers.createdAt, now)))
+  ])
+
+  const latestActivity = [
+    calorieResult[0]?.createdAt,
+    proteinResult[0]?.createdAt,
+    sugarResult[0]?.createdAt,
+    caffeineResult[0]?.createdAt,
+    dividerResult[0]?.createdAt
+  ].reduce<Date | null>((latest, current) => {
+    if (current === null || current === undefined) {
+      return latest
+    }
+
+    if (latest === null || current.getTime() > latest.getTime()) {
+      return current
+    }
+
+    return latest
+  }, null)
+
+  return latestActivity
 }
 
 function getUnlockStatusAfterEntry(beforeStatus: Awaited<ReturnType<typeof calculateUnlockStatus>>, entryAmount: number) {

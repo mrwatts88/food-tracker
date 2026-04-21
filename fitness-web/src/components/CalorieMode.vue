@@ -5,6 +5,7 @@ import { nutritionMetrics, isNutritionMetric, nutritionMetricColorVars } from '@
 import { calorieApi, nutritionApi, voiceApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
+import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import type { EntryMetric, VoiceParsePreview, VoiceSessionState } from '@/types'
@@ -15,6 +16,7 @@ import VoiceEntryModal from './VoiceEntryModal.vue'
 
 const appStore = useAppStore()
 const calorieStore = useCalorieStore()
+const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const LISTENING_TIMEOUT_SECONDS = 20
@@ -71,6 +73,10 @@ const voiceSupported = computed(
 )
 
 const keyboardSubmitting = computed(() => {
+  if (entryDividerStore.submitting) {
+    return true
+  }
+
   if (appStore.activeMetric === 'weight') {
     return weightStore.submittingEntry
   }
@@ -94,6 +100,14 @@ async function handleSubmit(amount: number) {
   }
 
   await calorieStore.addEntry(amount)
+}
+
+async function handleInsertDivider() {
+  if (appStore.activeMetric === 'weight') {
+    return
+  }
+
+  await entryDividerStore.addDivider()
 }
 
 function handleMetricChange(metric: EntryMetric) {
@@ -407,6 +421,7 @@ onBeforeUnmount(() => {
         :mode="appStore.activeMetric"
         :accent-color="keyboardAccentColor"
         :submitting="keyboardSubmitting"
+        @insert-divider="handleInsertDivider"
         @submit="handleSubmit"
       />
     </div>

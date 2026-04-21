@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { buildHistoryListItems, formatHistoryTime } from '@/lib/history'
 import {
   isNutritionMetric,
   nutritionMetricColorVars,
@@ -8,10 +9,12 @@ import {
   nutritionMetricUnits
 } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
+import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import type { NutritionMetric } from '@/types'
 
 const appStore = useAppStore()
+const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const deletingId = ref<number | null>(null)
 
@@ -22,16 +25,9 @@ const currentLabel = computed(() => nutritionMetricLabels[currentMetric.value])
 const currentUnit = computed(() => nutritionMetricUnits[currentMetric.value])
 const currentColor = computed(() => nutritionMetricColorVars[currentMetric.value])
 
-const sortedEntries = computed(() => {
-  return [...nutritionStore.currentEntries].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
-})
-
-function formatTime(datetime: string) {
-  const date = new Date(datetime.replace(' ', 'T'))
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-}
+const historyItems = computed(() =>
+  buildHistoryListItems(nutritionStore.currentEntries, entryDividerStore.entries)
+)
 
 async function handleDelete(id: number) {
   deletingId.value = id
@@ -42,33 +38,40 @@ async function handleDelete(id: number) {
 
 <template>
   <div class="entry-list">
-    <div v-if="sortedEntries.length === 0" class="empty-state">
+    <div v-if="historyItems.length === 0" class="empty-state">
       No {{ currentLabel.toLowerCase() }} entries today
     </div>
     <div v-else class="entries">
-      <div v-for="entry in sortedEntries" :key="entry.id" class="entry-item">
-        <div class="entry-info">
-          <div class="entry-time">{{ formatTime(entry.createdAt) }}</div>
-          <div class="entry-amount" :style="{ color: currentColor }">
-            {{ entry.amount }} {{ currentUnit }}
-          </div>
+      <template v-for="item in historyItems" :key="item.id">
+        <div v-if="item.type === 'divider'" class="divider-item">
+          <span class="divider-line"></span>
+          <span class="divider-label">{{ formatHistoryTime(item.createdAt) }}</span>
+          <span class="divider-line"></span>
         </div>
-        <button
-          class="delete-button"
-          :disabled="deletingId !== null"
-          @click="handleDelete(entry.id)"
-        >
-          <span v-if="deletingId === entry.id" class="loading-spinner"></span>
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            />
-          </svg>
-        </button>
-      </div>
+        <div v-else class="entry-item">
+          <div class="entry-info">
+            <div class="entry-time">{{ formatHistoryTime(item.entry.createdAt) }}</div>
+            <div class="entry-amount" :style="{ color: currentColor }">
+              {{ item.entry.amount }} {{ currentUnit }}
+            </div>
+          </div>
+          <button
+            class="delete-button"
+            :disabled="deletingId !== null"
+            @click="handleDelete(item.entry.id)"
+          >
+            <span v-if="deletingId === item.entry.id" class="loading-spinner"></span>
+            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -99,6 +102,27 @@ async function handleDelete(id: number) {
   padding: var(--spacing-md);
   background: var(--color-background);
   border-radius: var(--border-radius);
+}
+
+.divider-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 4px 0;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(156, 163, 175, 0.3);
+}
+
+.divider-label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .entry-info {

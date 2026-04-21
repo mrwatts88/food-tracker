@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type {
   CalorieEntry,
+  EntryDivider,
   GoalConfigResponse,
   NutritionEntry,
   NutritionMetric,
@@ -27,6 +28,11 @@ export const calorieApi = {
   getUnlockStatus: () => api.get<UnlockStatus>('/calories/unlock-status'),
   addEntry: (amount: number) => api.post<CalorieEntry>('/calories', { amount }),
   deleteEntry: (id: number) => api.delete(`/calories/${id}`)
+}
+
+export const entryDividerApi = {
+  getEntries: () => api.get<EntryDivider[]>('/entry-dividers'),
+  addDivider: () => api.post<EntryDivider>('/entry-dividers')
 }
 
 const nutritionEndpoints: Record<NutritionMetric, string> = {
