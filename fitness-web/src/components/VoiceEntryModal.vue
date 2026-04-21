@@ -141,7 +141,7 @@ function formatItemTitle(item: VoiceParsePreview['items'][number]) {
 
 <style scoped>
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 1100;
   background: rgba(2, 6, 23, 0.72);
