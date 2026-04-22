@@ -20,7 +20,6 @@ const emit = defineEmits<{
 
 const currentInput = ref('')
 const hasInput = computed(() => currentInput.value.length > 0)
-const showsDividerAction = computed(() => props.mode !== 'weight' && !hasInput.value)
 
 const displayValue = computed(() => {
   if (props.mode === 'weight' && currentInput.value.length > 0) {
@@ -57,14 +56,6 @@ function handleClearInput() {
   }
 
   currentInput.value = ''
-}
-
-function handleInsertDivider() {
-  if (props.submitting || !showsDividerAction.value) {
-    return
-  }
-
-  emit('insert-divider')
 }
 
 function handleSubmit() {
@@ -137,17 +128,7 @@ function handleKeyDown(event: KeyboardEvent) {
       >
         {{ num }}
       </button>
-      <button
-        v-if="showsDividerAction"
-        class="key-button key-divider"
-        :style="{ background: primaryColor }"
-        :disabled="submitting"
-        @click="handleInsertDivider"
-      >
-        <span v-if="submitting" class="loading-spinner divider-spinner"></span>
-        <span v-else>BINK</span>
-      </button>
-      <button v-else class="key-button key-clear" @click="handleBackspace">←</button>
+      <button class="key-button key-clear" @click="handleBackspace">←</button>
       <button class="key-button" @click="handleNumberClick(0)">0</button>
       <button
         class="key-button key-submit"
@@ -247,24 +228,6 @@ function handleKeyDown(event: KeyboardEvent) {
   background: #dc2626;
 }
 
-.key-divider {
-  color: white;
-}
-
-.key-divider:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.key-divider:active {
-  opacity: 0.8;
-}
-
-.key-divider:disabled:active {
-  transform: none;
-  opacity: 0.5;
-}
-
 .key-submit {
   color: white;
 }
@@ -290,11 +253,6 @@ function handleKeyDown(event: KeyboardEvent) {
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-}
-
-.divider-spinner {
-  border-color: rgba(249, 250, 251, 0.25);
-  border-top-color: currentColor;
 }
 
 @keyframes spin {

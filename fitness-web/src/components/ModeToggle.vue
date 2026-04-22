@@ -5,8 +5,16 @@ import type { Mode } from '@/types'
 const appStore = useAppStore()
 
 function handleModeChange(mode: Mode) {
-  if (mode === 'calorie' && appStore.mode === 'calorie') {
-    appStore.toggleTrackDashboardMode()
+  if (mode === 'calorie') {
+    appStore.setMode('calorie')
+    appStore.activateTrackMetric()
+    appStore.closeDrawer()
+    return
+  }
+
+  if (mode === 'weight') {
+    appStore.setMode('weight')
+    appStore.setActiveMetric('weight')
     appStore.closeDrawer()
     return
   }
@@ -24,6 +32,13 @@ function handleModeChange(mode: Mode) {
       @click="handleModeChange('calorie')"
     >
       Track
+    </button>
+    <button
+      :class="['toggle-button', { active: appStore.mode === 'weight' }]"
+      :style="{ '--active-color': 'var(--color-weight-primary)' }"
+      @click="handleModeChange('weight')"
+    >
+      Weight
     </button>
     <button
       :class="['toggle-button', { active: appStore.mode === 'stats' }]"

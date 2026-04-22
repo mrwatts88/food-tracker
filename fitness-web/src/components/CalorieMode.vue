@@ -8,7 +8,7 @@ import { useCalorieStore } from '@/stores/calorie'
 import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { EntryMetric, VoiceParsePreview, VoiceSessionState } from '@/types'
+import type { EntryMetric, TrackMetric, VoiceParsePreview, VoiceSessionState } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
 import VoiceEntryButton from './VoiceEntryButton.vue'
@@ -26,14 +26,6 @@ const recordingSecondsRemaining = ref(LISTENING_TIMEOUT_SECONDS)
 const voicePreview = ref<VoiceParsePreview | null>(null)
 const voiceError = ref<string | null>(null)
 const savingVoicePreview = ref(false)
-
-const trackSelectors: Array<{ metric: EntryMetric; label: string; accentColor: string }> = [
-  { metric: 'calorie', label: 'kCals', accentColor: 'var(--color-calorie-primary)' },
-  { metric: 'protein', label: 'Pro', accentColor: nutritionMetricColorVars.protein },
-  { metric: 'sugar', label: 'Sug', accentColor: nutritionMetricColorVars.sugar },
-  { metric: 'caffeine', label: 'Caff', accentColor: nutritionMetricColorVars.caffeine },
-  { metric: 'weight', label: 'Wt', accentColor: 'var(--color-weight-primary)' }
-]
 
 let mediaRecorder: MediaRecorder | null = null
 let mediaStream: MediaStream | null = null
@@ -71,6 +63,7 @@ const voiceSupported = computed(
     typeof MediaRecorder !== 'undefined' &&
     Boolean(navigator.mediaDevices?.getUserMedia)
 )
+const showTrackActions = computed(() => appStore.mode === 'calorie')
 
 const keyboardSubmitting = computed(() => {
   if (entryDividerStore.submitting) {
@@ -116,6 +109,10 @@ function handleMetricChange(metric: EntryMetric) {
   }
 
   appStore.setActiveMetric(metric)
+}
+
+function handleTrackMetricSelect(metric: TrackMetric) {
+  handleMetricChange(metric)
 }
 
 function clearRecordingTimers() {
@@ -393,16 +390,16 @@ onBeforeUnmount(() => {
 <template>
   <div class="calorie-mode">
     <div class="display-section">
-      <CalorieDisplay :active-metric="appStore.activeMetric" />
-      <div class="track-toggle">
+      <CalorieDisplay :active-metric="appStore.activeMetric" @select-metric="handleTrackMetricSelect" />
+      <div v-if="showTrackActions" class="track-actions">
         <button
-          v-for="selector in trackSelectors"
-          :key="selector.metric"
-          :class="['track-toggle-button', { active: appStore.activeMetric === selector.metric }]"
-          :style="{ '--track-accent': selector.accentColor }"
-          @click="handleMetricChange(selector.metric)"
+          class="track-action-button track-action-button--divider"
+          :style="{ '--track-action-accent': keyboardAccentColor }"
+          :disabled="keyboardSubmitting"
+          @click="handleInsertDivider"
         >
-          {{ selector.label }}
+          <span v-if="keyboardSubmitting" class="track-action-spinner"></span>
+          <span v-else>BINK</span>
         </button>
         <VoiceEntryButton
           :state="voiceState"
@@ -452,53 +449,62 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
-.track-toggle {
+.track-actions {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
 }
 
 @media (min-width: 429px) {
-  .track-toggle {
+  .track-actions {
     border-left: 3px solid var(--color-surface);
     border-right: 3px solid var(--color-surface);
   }
 }
 
-.track-toggle-button {
+.track-action-button {
+  min-height: 42px;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: var(--border-radius);
   background: rgba(255, 255, 255, 0.03);
-  color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 0;
 }
 
-.track-toggle-button.active {
-  background: color-mix(in srgb, var(--track-accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--track-accent) 50%, transparent);
-  color: var(--track-accent);
+.track-action-button--divider {
+  background: color-mix(in srgb, var(--track-action-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--track-action-accent) 40%, transparent);
+  color: var(--track-action-accent);
+}
+
+.track-action-button:active {
+  transform: scale(0.98);
+}
+
+.track-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.track-action-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--track-action-accent) 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 @media (max-width: 428px) {
-  .track-toggle {
-    gap: 6px;
+  .track-actions {
+    padding-bottom: var(--spacing-sm);
   }
-
-  .track-toggle-button {
-    padding: 10px 6px;
-    font-size: 12px;
-  }
-}
-
-.track-toggle-button:active {
-  transform: scale(0.98);
 }
 
 .input-section {
@@ -517,6 +523,12 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.35;
   text-align: center;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 </style>

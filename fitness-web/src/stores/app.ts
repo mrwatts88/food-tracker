@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { EntryMetric, Mode, TrackDashboardMode } from '@/types'
+import type { EntryMetric, Mode, TrackMetric } from '@/types'
 
 export const useAppStore = defineStore('app', () => {
   const mode = ref<Mode>('calorie')
   const activeMetric = ref<EntryMetric>('calorie')
-  const trackDashboardMode = ref<TrackDashboardMode>('overview')
+  const lastTrackMetric = ref<TrackMetric>('calorie')
   const drawerMetric = ref<EntryMetric | null>(null)
   const isDrawerOpen = ref(false)
 
@@ -15,15 +15,14 @@ export const useAppStore = defineStore('app', () => {
 
   function setActiveMetric(newActiveMetric: EntryMetric) {
     activeMetric.value = newActiveMetric
+
+    if (newActiveMetric !== 'weight') {
+      lastTrackMetric.value = newActiveMetric
+    }
   }
 
-  function setTrackDashboardMode(newTrackDashboardMode: TrackDashboardMode) {
-    trackDashboardMode.value = newTrackDashboardMode
-  }
-
-  function toggleTrackDashboardMode() {
-    trackDashboardMode.value =
-      trackDashboardMode.value === 'overview' ? 'nutrition' : 'overview'
+  function activateTrackMetric() {
+    activeMetric.value = lastTrackMetric.value
   }
 
   function toggleDrawer() {
@@ -50,13 +49,12 @@ export const useAppStore = defineStore('app', () => {
   return {
     mode,
     activeMetric,
-    trackDashboardMode,
+    lastTrackMetric,
     drawerMetric,
     isDrawerOpen,
     setMode,
     setActiveMetric,
-    setTrackDashboardMode,
-    toggleTrackDashboardMode,
+    activateTrackMetric,
     toggleDrawer,
     closeDrawer,
     openDrawer

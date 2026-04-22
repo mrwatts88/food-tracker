@@ -25,7 +25,7 @@ onMounted(async () => {
   ])
 
   if (!weightStore.todayWeight) {
-    appStore.setMode('calorie')
+    appStore.setMode('weight')
     appStore.setActiveMetric('weight')
   }
 })
@@ -34,7 +34,7 @@ onMounted(async () => {
 <template>
   <div class="app-container">
     <ModeToggle />
-    <CalorieMode v-if="appStore.mode === 'calorie'" />
+    <CalorieMode v-if="appStore.mode === 'calorie' || appStore.mode === 'weight'" />
     <StatsMode v-if="appStore.mode === 'stats'" />
     <EntryDrawer />
   </div>

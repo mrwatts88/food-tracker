@@ -59,9 +59,9 @@ const drawerTitleColor = computed(() => {
           </button>
         </div>
         <div class="drawer-body">
-          <CalorieEntryList v-if="appStore.mode === 'calorie' && drawerMetric === 'calorie'" />
-          <NutritionEntryList v-if="appStore.mode === 'calorie' && isNutritionMetric(drawerMetric)" />
-          <WeightEntryList v-if="appStore.mode === 'calorie' && drawerMetric === 'weight'" />
+          <CalorieEntryList v-if="appStore.mode !== 'stats' && drawerMetric === 'calorie'" />
+          <NutritionEntryList v-if="appStore.mode !== 'stats' && isNutritionMetric(drawerMetric)" />
+          <WeightEntryList v-if="appStore.mode !== 'stats' && drawerMetric === 'weight'" />
         </div>
       </div>
     </div>

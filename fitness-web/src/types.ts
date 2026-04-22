@@ -1,7 +1,7 @@
-export type Mode = 'calorie' | 'stats'
-export type TrackDashboardMode = 'overview' | 'nutrition'
+export type Mode = 'calorie' | 'weight' | 'stats'
 export type NutritionMetric = 'protein' | 'sugar' | 'caffeine'
-export type EntryMetric = 'calorie' | 'weight' | NutritionMetric
+export type TrackMetric = 'calorie' | NutritionMetric
+export type EntryMetric = TrackMetric | 'weight'
 export type VoiceMetric = 'calorie' | NutritionMetric
 export type VoiceSessionState = 'idle' | 'listening' | 'processing' | 'preview'
 
