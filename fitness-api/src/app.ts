@@ -22,7 +22,12 @@ import {
   type AlertNotifier
 } from './lib/alerts'
 import { calculateUnlockStatus } from './lib/calorie-unlock'
-import { getGoalConfig } from './lib/goals'
+import {
+  recordDailyGoalEntry,
+  refreshUnevaluatedDailyGoalDay,
+  syncDailyGoalStreak
+} from './lib/daily-goal-streak'
+import { DEFAULT_GOAL_CONFIG, getGoalConfig } from './lib/goals'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
 import { createVoiceParser, type VoiceParser } from './lib/voice'
@@ -52,6 +57,10 @@ const weightEntrySchema = z.object({
   amount: z.number().positive()
 })
 
+const configMetricSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9_]+$/)
+const configValueSchema = z.object({
+  amount: z.number().int()
+})
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine'
 type NutritionAlertMetric = 'sugar' | 'caffeine'
@@ -185,7 +194,10 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.get('/calories/unlock-status', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
-    const goalConfig = await getGoalConfig(runtime.db)
+    const [goalConfig, dailyGoalStreak] = await Promise.all([
+      getGoalConfig(runtime.db),
+      syncDailyGoalStreak(runtime.db, runtime.now(), runtime.config.appTimezone)
+    ])
 
     const unlockStatus = await calculateUnlockStatus({
       db: runtime.db,
@@ -193,7 +205,8 @@ export function createApp(dependencies: AppDependencies = {}) {
       timezone: runtime.config.appTimezone,
       schedule: runtime.config.calorieUnlockSchedule,
       fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
-      calorieDeficit: goalConfig.calorieDeficit
+      calorieDeficit: goalConfig.calorieDeficit,
+      dailyGoalStreak
     })
 
     return c.json(unlockStatus)
@@ -204,6 +217,8 @@ export function createApp(dependencies: AppDependencies = {}) {
     const input = calorieEntrySchema.parse(await c.req.json())
     const createdAt = runtime.now()
     const activeNotifier = runtime.notifier
+    const goalConfig = await getGoalConfig(runtime.db)
+    const dailyGoalStreak = await syncDailyGoalStreak(runtime.db, createdAt, runtime.config.appTimezone)
     const beforeStatus =
       activeNotifier === null
         ? null
@@ -213,7 +228,8 @@ export function createApp(dependencies: AppDependencies = {}) {
             timezone: runtime.config.appTimezone,
             schedule: runtime.config.calorieUnlockSchedule,
             fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
-            calorieDeficit: (await getGoalConfig(runtime.db)).calorieDeficit
+            calorieDeficit: goalConfig.calorieDeficit,
+            dailyGoalStreak
           })
 
     await insertAutoDividerIfNeeded(runtime.db, createdAt, runtime.config.appTimezone)
@@ -227,6 +243,14 @@ export function createApp(dependencies: AppDependencies = {}) {
       .returning()
 
     const createdEntry = assertFound(entry, 'Failed to create calorie entry')
+    await recordDailyGoalEntry({
+      db: runtime.db,
+      metric: 'calorie',
+      amount: input.amount,
+      createdAt,
+      timezone: runtime.config.appTimezone,
+      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+    })
 
     if (beforeStatus !== null && activeNotifier !== null) {
       const afterStatus = getUnlockStatusAfterEntry(beforeStatus, input.amount)
@@ -263,8 +287,22 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.delete('/calories/:id', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     const id = parsePositiveInteger(c.req.param('id'), 'id')
+    const [entry] = await runtime.db
+      .select({ createdAt: calorieEntries.createdAt })
+      .from(calorieEntries)
+      .where(eq(calorieEntries.id, id))
+      .limit(1)
 
     await runtime.db.delete(calorieEntries).where(eq(calorieEntries.id, id))
+
+    if (entry) {
+      await refreshUnevaluatedDailyGoalDay({
+        db: runtime.db,
+        createdAt: entry.createdAt,
+        timezone: runtime.config.appTimezone,
+        fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+      })
+    }
 
     return c.body(null, 200)
   })
@@ -276,6 +314,31 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.get('/nutrition/goals', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     return c.json(await getGoalConfig(runtime.db))
+  })
+
+  app.get('/config', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    return c.json(await getConfigRows(runtime.db))
+  })
+
+  app.put('/config/:metric', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const metric = configMetricSchema.parse(c.req.param('metric'))
+    const input = configValueSchema.parse(await c.req.json())
+
+    const [row] = await runtime.db
+      .insert(nutritionGoals)
+      .values({
+        metric,
+        amount: input.amount
+      })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: input.amount }
+      })
+      .returning()
+
+    return c.json(assertFound(row, 'Failed to update config value'))
   })
 
   app.get('/weight', async c => {
@@ -406,6 +469,14 @@ function registerNutritionEntryRoutes(
       .returning()
 
     const createdEntry = assertFound(entry, `Failed to create ${path} entry`)
+    await recordDailyGoalEntry({
+      db: runtime.db,
+      metric: path,
+      amount: input.amount,
+      createdAt,
+      timezone: runtime.config.appTimezone,
+      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+    })
 
     if (activeNotifier !== null && alertMetric !== null) {
       const afterTotal = beforeTotal + input.amount
@@ -439,8 +510,22 @@ function registerNutritionEntryRoutes(
   app.delete(`/${path}/:id`, async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     const id = parsePositiveInteger(c.req.param('id'), 'id')
+    const [entry] = await runtime.db
+      .select({ createdAt: table.createdAt })
+      .from(table)
+      .where(eq(table.id, id))
+      .limit(1)
 
     await runtime.db.delete(table).where(eq(table.id, id))
+
+    if (entry) {
+      await refreshUnevaluatedDailyGoalDay({
+        db: runtime.db,
+        createdAt: entry.createdAt,
+        timezone: runtime.config.appTimezone,
+        fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+      })
+    }
 
     return c.body(null, 200)
   })
@@ -516,6 +601,25 @@ async function insertAutoDividerIfNeeded(db: Database, createdAt: Date, timezone
   await db.insert(entryDividers).values({
     createdAt
   })
+}
+
+async function getConfigRows(db: Database) {
+  const rows = await db.select().from(nutritionGoals)
+  const rowByMetric = new Map(rows.map(row => [row.metric, row.amount]))
+  const defaultRows = [
+    ['protein', DEFAULT_GOAL_CONFIG.protein],
+    ['sugar', DEFAULT_GOAL_CONFIG.sugar],
+    ['caffeine', DEFAULT_GOAL_CONFIG.caffeine],
+    ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit]
+  ] as const
+
+  for (const [metric, amount] of defaultRows) {
+    if (!rowByMetric.has(metric)) {
+      rows.push({ metric, amount })
+    }
+  }
+
+  return rows.sort((left, right) => left.metric.localeCompare(right.metric))
 }
 
 async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: string) {

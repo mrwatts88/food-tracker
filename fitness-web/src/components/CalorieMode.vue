@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { nutritionMetrics, isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
 import { calorieApi, nutritionApi, voiceApi } from '@/services/api'
@@ -15,6 +16,7 @@ import VoiceEntryButton from './VoiceEntryButton.vue'
 import VoiceEntryModal from './VoiceEntryModal.vue'
 
 const appStore = useAppStore()
+const router = useRouter()
 const calorieStore = useCalorieStore()
 const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
@@ -101,6 +103,10 @@ async function handleInsertDivider() {
   }
 
   await entryDividerStore.addDivider()
+}
+
+function handleSettingsClick() {
+  router.push('/settings')
 }
 
 function handleMetricChange(metric: EntryMetric) {
@@ -401,6 +407,30 @@ onBeforeUnmount(() => {
           <span v-if="keyboardSubmitting" class="track-action-spinner"></span>
           <span v-else>BINK</span>
         </button>
+        <button
+          class="track-action-button track-action-button--settings"
+          type="button"
+          aria-label="Settings"
+          title="Settings"
+          @click="handleSettingsClick"
+        >
+          <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .9l-.03.08a2 2 0 0 1-3.86 0l-.03-.08a1.7 1.7 0 0 0-1-.9 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-.9-1l-.08-.03a2 2 0 0 1 0-3.86l.08-.03a1.7 1.7 0 0 0 .9-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1-.9l.03-.08a2 2 0 0 1 3.86 0l.03.08a1.7 1.7 0 0 0 1 .9 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.09.39.42.73.9 1l.08.03a2 2 0 0 1 0 3.86l-.08.03a1.7 1.7 0 0 0-.86 1.08Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            />
+          </svg>
+        </button>
         <VoiceEntryButton
           :state="voiceState"
           :supported="voiceSupported"
@@ -451,7 +481,7 @@ onBeforeUnmount(() => {
 
 .track-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr);
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
@@ -480,6 +510,20 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--track-action-accent) 16%, transparent);
   border-color: color-mix(in srgb, var(--track-action-accent) 40%, transparent);
   color: var(--track-action-accent);
+}
+
+.track-action-button--settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.28);
+  background: color-mix(in srgb, #8b5cf6 12%, transparent);
+}
+
+.settings-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .track-action-button:active {

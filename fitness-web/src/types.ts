@@ -47,6 +47,11 @@ export interface GoalConfigResponse extends NutritionGoals {
   calorieDeficit: number
 }
 
+export interface ConfigValue {
+  metric: string
+  amount: number
+}
+
 export interface TDEEResponse {
   amount: number
   lossIn2Weeks: number
@@ -65,6 +70,7 @@ export interface UnlockStatus {
   nextScheduledUnlockCalories: number
   nextEffectiveUnlockCalories: number
   allCaloriesUnlockedToday: boolean
+  dailyGoalStreak: number
   noBorrowUnlockStreak: number
   timezone: string
   serverNow: string

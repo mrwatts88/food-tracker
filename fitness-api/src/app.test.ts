@@ -9,6 +9,8 @@ import { readMigrationFiles } from './db/run-migrations'
 import {
   caffeineEntries,
   calorieEntries,
+  dailyGoalDays,
+  dailyGoalStreakState,
   entryDividers,
   nutritionGoals,
   proteinEntries,
@@ -147,7 +149,27 @@ async function clearTrackingData() {
   await db.delete(sugarEntries)
   await db.delete(caffeineEntries)
   await db.delete(entryDividers)
+  await db.delete(dailyGoalDays)
+  await db.delete(dailyGoalStreakState)
   await db.delete(weightEntries)
+}
+
+async function addEntryAt(path: 'calories' | 'protein' | 'sugar' | 'caffeine', createdAt: Date, amount: number) {
+  const entryApp = createTestApp({ now: createdAt })
+  const response = await entryApp.request(`/api/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount })
+  })
+
+  expect(response.status).toBe(201)
+}
+
+async function addSuccessfulDailyGoalEntries(createdAt: Date) {
+  await addEntryAt('calories', createdAt, 1500)
+  await addEntryAt('protein', createdAt, 120)
+  await addEntryAt('sugar', createdAt, 50)
+  await addEntryAt('caffeine', createdAt, 100)
 }
 
 async function seedTdeeFixture() {
@@ -547,6 +569,46 @@ describe('fitness api', () => {
       })
   })
 
+  it('returns editable config values with defaults', async () => {
+    await db.delete(nutritionGoals)
+    await db.insert(nutritionGoals).values({ metric: 'protein', amount: 130 })
+
+    const response = await app.request('/api/config')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual([
+      { metric: 'caffeine', amount: 280 },
+      { metric: 'calorie_deficit', amount: 250 },
+      { metric: 'protein', amount: 130 },
+      { metric: 'sugar', amount: 80 }
+    ])
+
+    await db.delete(nutritionGoals)
+  })
+
+  it('updates a config value', async () => {
+    const response = await app.request('/api/config/calorie_deficit', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ amount: 325 })
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      metric: 'calorie_deficit',
+      amount: 325
+    })
+
+    const goalsResponse = await app.request('/api/nutrition/goals')
+    await expect(goalsResponse.json()).resolves.toMatchObject({
+      calorieDeficit: 325
+    })
+
+    await db.delete(nutritionGoals)
+  })
+
   it('falls back to default goals when the nutrition goals table has not been migrated yet', async () => {
     const legacyClient = new PGlite()
     const legacyDb = drizzle(legacyClient, { schema })
@@ -876,7 +938,7 @@ describe('fitness api', () => {
       nextUnlockAt: '2026-03-17T17:00:00.000-05:00',
       nextScheduledUnlockCalories: 500,
       nextEffectiveUnlockCalories: 500,
-      noBorrowUnlockStreak: 1,
+      noBorrowUnlockStreak: 0,
       allCaloriesUnlockedToday: false
     })
   })
@@ -1170,129 +1232,123 @@ describe('fitness api', () => {
     expect(notifierSpy.sent[0]?.text).toContain('Over daily target by: 100 calories')
   })
 
-  it('counts a no-borrow streak across multiple completed unlocks and days', async () => {
+  it('increments the daily goal streak after a completed successful day', async () => {
     await clearTrackingData()
+    await addSuccessfulDailyGoalEntries(new Date('2026-03-16T17:00:00.000Z'))
 
-    await db.insert(calorieEntries).values([
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T14:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T17:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T22:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-17T02:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-17T14:30:00.000Z')
-      }
-    ])
-
-    const unlockApp = createTestApp({
-      now: new Date('2026-03-17T18:30:00.000Z')
-    })
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
     const response = await unlockApp.request('/api/calories/unlock-status')
     const body = (await response.json()) as {
+      dailyGoalStreak: number
       noBorrowUnlockStreak: number
     }
 
     expect(response.status).toBe(200)
-    expect(body.noBorrowUnlockStreak).toBe(5)
+    expect(body.dailyGoalStreak).toBe(1)
+    expect(body.noBorrowUnlockStreak).toBe(1)
   })
 
-  it('resets the no-borrow streak when the most recent completed slot borrowed', async () => {
+  it('resets the daily goal streak when protein misses its minimum', async () => {
     await clearTrackingData()
-    await db.insert(calorieEntries).values({
-      amount: 600,
-      createdAt: new Date('2026-03-17T14:30:00.000Z')
-    })
+    const entryDate = new Date('2026-03-16T17:00:00.000Z')
+    await addEntryAt('calories', entryDate, 1500)
+    await addEntryAt('protein', entryDate, 99)
+    await addEntryAt('sugar', entryDate, 50)
+    await addEntryAt('caffeine', entryDate, 100)
 
-    const unlockApp = createTestApp({
-      now: new Date('2026-03-17T18:30:00.000Z')
-    })
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
     const response = await unlockApp.request('/api/calories/unlock-status')
     const body = (await response.json()) as {
-      noBorrowUnlockStreak: number
+      dailyGoalStreak: number
     }
 
     expect(response.status).toBe(200)
-    expect(body.noBorrowUnlockStreak).toBe(0)
+    expect(body.dailyGoalStreak).toBe(0)
   })
 
-  it('excludes the current active slot from the no-borrow streak', async () => {
+  it('resets the daily goal streak when a maximum goal is exceeded', async () => {
     await clearTrackingData()
-    await db.insert(calorieEntries).values([
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-17T14:30:00.000Z')
-      },
-      {
-        amount: 700,
-        createdAt: new Date('2026-03-17T17:30:00.000Z')
-      }
-    ])
+    const entryDate = new Date('2026-03-16T17:00:00.000Z')
+    await addEntryAt('calories', entryDate, 1500)
+    await addEntryAt('protein', entryDate, 120)
+    await addEntryAt('sugar', entryDate, 81)
+    await addEntryAt('caffeine', entryDate, 100)
 
-    const unlockApp = createTestApp({
-      now: new Date('2026-03-17T18:30:00.000Z')
-    })
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
     const response = await unlockApp.request('/api/calories/unlock-status')
     const body = (await response.json()) as {
-      availableCalories: number
-      overdrawCalories: number
-      noBorrowUnlockStreak: number
+      dailyGoalStreak: number
     }
 
     expect(response.status).toBe(200)
-    expect(body).toMatchObject({
-      availableCalories: 0,
-      overdrawCalories: 100,
-      noBorrowUnlockStreak: 1
-    })
+    expect(body.dailyGoalStreak).toBe(0)
   })
 
-  it('continues the no-borrow streak across the day boundary before the first unlock', async () => {
+  it('does not rewrite an evaluated daily goal streak after config changes', async () => {
     await clearTrackingData()
-    await db.insert(calorieEntries).values([
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T14:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T17:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-16T22:30:00.000Z')
-      },
-      {
-        amount: 400,
-        createdAt: new Date('2026-03-17T02:30:00.000Z')
-      }
-    ])
+    await addSuccessfulDailyGoalEntries(new Date('2026-03-16T17:00:00.000Z'))
 
-    const unlockApp = createTestApp({
-      now: new Date('2026-03-17T13:30:00.000Z')
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
+    const firstResponse = await unlockApp.request('/api/calories/unlock-status')
+    await expect(firstResponse.json()).resolves.toMatchObject({
+      dailyGoalStreak: 1
     })
+
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'protein', amount: 150 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 150 }
+      })
+
+    const secondResponse = await unlockApp.request('/api/calories/unlock-status')
+    await expect(secondResponse.json()).resolves.toMatchObject({
+      dailyGoalStreak: 1
+    })
+
+    await db
+      .insert(nutritionGoals)
+      .values({ metric: 'protein', amount: 100 })
+      .onConflictDoUpdate({
+        target: nutritionGoals.metric,
+        set: { amount: 100 }
+      })
+  })
+
+  it('does not count the current in-progress day toward the daily goal streak', async () => {
+    await clearTrackingData()
+    await addSuccessfulDailyGoalEntries(new Date('2026-03-17T17:00:00.000Z'))
+
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T23:00:00.000Z') })
 
     const response = await unlockApp.request('/api/calories/unlock-status')
     const body = (await response.json()) as {
-      noBorrowUnlockStreak: number
+      dailyGoalStreak: number
     }
 
     expect(response.status).toBe(200)
-    expect(body.noBorrowUnlockStreak).toBe(4)
+    expect(body.dailyGoalStreak).toBe(0)
+  })
+
+  it('breaks the daily goal streak when a completed day is missing', async () => {
+    await clearTrackingData()
+    await addSuccessfulDailyGoalEntries(new Date('2026-03-16T17:00:00.000Z'))
+
+    const firstApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
+    const firstResponse = await firstApp.request('/api/calories/unlock-status')
+    await expect(firstResponse.json()).resolves.toMatchObject({
+      dailyGoalStreak: 1
+    })
+
+    const secondApp = createTestApp({ now: new Date('2026-03-19T17:00:00.000Z') })
+    const secondResponse = await secondApp.request('/api/calories/unlock-status')
+    await expect(secondResponse.json()).resolves.toMatchObject({
+      dailyGoalStreak: 0
+    })
   })
 
   it('upserts and deletes weight entries by local date', async () => {

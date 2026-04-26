@@ -128,7 +128,16 @@ function handleKeyDown(event: KeyboardEvent) {
       >
         {{ num }}
       </button>
-      <button class="key-button key-clear" @click="handleBackspace">←</button>
+      <button class="key-button key-clear" aria-label="Backspace" @click="handleBackspace">
+        <svg class="key-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+            d="M11 17L6 12l5-5M6 12h12"
+          />
+        </svg>
+      </button>
       <button class="key-button" @click="handleNumberClick(0)">0</button>
       <button
         class="key-button key-submit"
@@ -212,6 +221,11 @@ function handleKeyDown(event: KeyboardEvent) {
   cursor: pointer;
   transition: all 0.1s ease;
   user-select: none;
+}
+
+.key-icon {
+  display: block;
+  margin: 0 auto;
 }
 
 .key-button:active {

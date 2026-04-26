@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type {
   CalorieEntry,
+  ConfigValue,
   EntryDivider,
   GoalConfigResponse,
   NutritionEntry,
@@ -48,6 +49,12 @@ export const nutritionApi = {
     api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
   deleteEntry: (metric: NutritionMetric, id: number) =>
     api.delete(`${nutritionEndpoints[metric]}/${id}`)
+}
+
+export const configApi = {
+  getValues: () => api.get<ConfigValue[]>('/config'),
+  updateValue: (metric: string, amount: number) =>
+    api.put<ConfigValue>(`/config/${encodeURIComponent(metric)}`, { amount })
 }
 
 export const voiceApi = {

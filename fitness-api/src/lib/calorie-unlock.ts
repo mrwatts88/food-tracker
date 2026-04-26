@@ -40,6 +40,7 @@ export type UnlockStatus = {
   nextScheduledUnlockCalories: number
   nextEffectiveUnlockCalories: number
   allCaloriesUnlockedToday: boolean
+  dailyGoalStreak: number
   noBorrowUnlockStreak: number
   timezone: string
   serverNow: string
@@ -52,8 +53,9 @@ export async function calculateUnlockStatus(options: {
   schedule: string
   fallbackGoal: number
   calorieDeficit: number
+  dailyGoalStreak?: number
 }): Promise<UnlockStatus> {
-  const { db, now, timezone, schedule, fallbackGoal, calorieDeficit } = options
+  const { db, now, timezone, schedule, fallbackGoal, calorieDeficit, dailyGoalStreak = 0 } = options
   const current = getCurrentDateTime(now, timezone)
   const todayKey = current.toISODate() ?? ''
   const scheduleSlots = parseUnlockSchedule(schedule)
@@ -71,15 +73,6 @@ export async function calculateUnlockStatus(options: {
   const consumedCalories = todayEntries.reduce((sum, entry) => sum + entry.amount, 0)
   const overdrawCalories = Math.max(0, consumedCalories - unlockedCalories)
   const nextSlot = dailySchedule.find(slot => slot.unlockAt.toMillis() > current.toMillis()) ?? null
-  const noBorrowUnlockStreak = await calculateNoBorrowUnlockStreak({
-    db,
-    current,
-    timezone,
-    scheduleSlots,
-    fallbackGoal,
-    calorieDeficit,
-    entries
-  })
 
   return {
     dailyTargetCalories,
@@ -91,7 +84,8 @@ export async function calculateUnlockStatus(options: {
     nextScheduledUnlockCalories: nextSlot?.calories ?? 0,
     nextEffectiveUnlockCalories: nextSlot ? Math.max(0, nextSlot.calories - overdrawCalories) : 0,
     allCaloriesUnlockedToday: nextSlot === null,
-    noBorrowUnlockStreak,
+    dailyGoalStreak,
+    noBorrowUnlockStreak: dailyGoalStreak,
     timezone,
     serverNow: toZonedIso(now, timezone)
   }
@@ -208,98 +202,6 @@ function buildDailyUnlockBoundaries(day: DateTime, schedule: UnlockScheduleSlot[
   })
 }
 
-async function calculateNoBorrowUnlockStreak(options: {
-  db: Database
-  current: DateTime
-  timezone: string
-  scheduleSlots: UnlockScheduleSlot[]
-  fallbackGoal: number
-  calorieDeficit: number
-  entries: LocalCalorieEntry[]
-}) {
-  const { db, current, timezone, scheduleSlots, fallbackGoal, calorieDeficit, entries } = options
-
-  if (entries.length === 0) {
-    return 0
-  }
-
-  const earliestEntry = entries[0]
-
-  if (!earliestEntry) {
-    return 0
-  }
-
-  const earliestTrackedDay = earliestEntry.createdAt.startOf('day')
-  const currentDayStart = current.startOf('day')
-  const entriesByDay = groupEntriesByDay(entries)
-  const dailyTargetCache = new Map<string, number>()
-  let streak = 0
-
-  for (
-    let day = currentDayStart;
-    day.toMillis() >= earliestTrackedDay.toMillis();
-    day = day.minus({ days: 1 })
-  ) {
-    const completedSlotCount = getCompletedSlotCount(day, current, scheduleSlots)
-
-    if (completedSlotCount === 0) {
-      continue
-    }
-
-    const dayKey = day.toISODate() ?? ''
-    const dailyTargetCalories = await getDailyTargetCaloriesForDay(
-      db,
-      day,
-      timezone,
-      fallbackGoal,
-      calorieDeficit,
-      dailyTargetCache
-    )
-    const completedSlots = buildDailyUnlockSchedule(day, scheduleSlots, dailyTargetCalories).slice(
-      0,
-      completedSlotCount
-    )
-    const cleanSlots = getCompletedSlotCleanFlags(completedSlots, entriesByDay.get(dayKey) ?? [])
-
-    for (let index = cleanSlots.length - 1; index >= 0; index -= 1) {
-      if (!cleanSlots[index]) {
-        return streak
-      }
-
-      streak += 1
-    }
-  }
-
-  return streak
-}
-
-function getCompletedSlotCount(day: DateTime, current: DateTime, schedule: UnlockScheduleSlot[]) {
-  if (day.toISODate() !== current.toISODate()) {
-    return schedule.length
-  }
-
-  const boundaries = buildDailyUnlockBoundaries(day, schedule)
-
-  return boundaries.filter(slot => slot.endAtExclusive.toMillis() <= current.toMillis()).length
-}
-
-function getCompletedSlotCleanFlags(slots: DailyUnlockSlot[], entries: LocalCalorieEntry[]) {
-  let cumulativeConsumed = 0
-  let entryIndex = 0
-
-  return slots.map(slot => {
-    while (
-      entryIndex < entries.length &&
-      (entries[entryIndex]?.createdAt.toMillis() ?? Number.POSITIVE_INFINITY) < slot.endAtExclusive.toMillis()
-    ) {
-      cumulativeConsumed += entries[entryIndex]?.amount ?? 0
-      entryIndex += 1
-    }
-
-    return cumulativeConsumed <= slot.cumulativeUnlocked
-  })
-}
-
 async function loadCalorieEntries(db: Database, timezone: string): Promise<LocalCalorieEntry[]> {
   const entries = await db
     .select({
@@ -318,49 +220,6 @@ async function loadCalorieEntries(db: Database, timezone: string): Promise<Local
       localDate: createdAt.toISODate() ?? ''
     }
   })
-}
-
-function groupEntriesByDay(entries: LocalCalorieEntry[]) {
-  const grouped = new Map<string, LocalCalorieEntry[]>()
-
-  for (const entry of entries) {
-    const dayEntries = grouped.get(entry.localDate)
-
-    if (dayEntries) {
-      dayEntries.push(entry)
-      continue
-    }
-
-    grouped.set(entry.localDate, [entry])
-  }
-
-  return grouped
-}
-
-async function getDailyTargetCaloriesForDay(
-  db: Database,
-  day: DateTime,
-  timezone: string,
-  fallbackGoal: number,
-  calorieDeficit: number,
-  cache: Map<string, number>
-) {
-  const dayKey = day.toISODate() ?? ''
-  const cached = cache.get(dayKey)
-
-  if (typeof cached === 'number') {
-    return cached
-  }
-
-  const dailyTargetCalories = await calculateDailyTargetCalories(
-    db,
-    day.endOf('day'),
-    timezone,
-    fallbackGoal,
-    calorieDeficit
-  )
-  cache.set(dayKey, dailyTargetCalories)
-  return dailyTargetCalories
 }
 
 async function calculateDailyTargetCalories(

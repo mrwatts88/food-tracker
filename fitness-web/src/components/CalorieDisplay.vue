@@ -22,7 +22,6 @@ type DashboardCard = {
     key: string
     label: string
     value: string
-    icon?: 'flame'
   }>
   selectMetric?: TrackMetric
   historyMetric?: EntryMetric
@@ -188,8 +187,8 @@ const streakSummary = computed(() => {
     return 'Loading streak'
   }
 
-  const streak = status.noBorrowUnlockStreak
-  const noun = streak === 1 ? 'unlock' : 'unlocks'
+  const streak = status.dailyGoalStreak
+  const noun = streak === 1 ? 'day' : 'days'
   return `${formatNumber(streak)} ${noun}`
 })
 
@@ -219,12 +218,6 @@ const nutritionCaloriesSummaryRows = computed<DashboardSummaryRow[]>(() => [
     key: 'unlock',
     label: '',
     value: nutritionUnlockSummary.value
-  },
-  {
-    key: 'streak',
-    label: '',
-    value: unlockStatus.value ? formatNumber(unlockStatus.value.noBorrowUnlockStreak) : '--',
-    icon: 'flame'
   },
   {
     key: 'consumed-target',
@@ -364,6 +357,21 @@ function formatProgressValue(current: number, goal: number | null) {
 <template>
   <div class="calorie-display">
     <div :class="['track-grid', { 'track-grid--single': displayCards.length === 1 }]">
+      <div v-if="!isWeightMode" class="streak-badge" aria-label="Daily goal streak">
+        <svg
+          class="streak-badge-icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 2c.4 2.2-.3 3.8-1.5 5.1C9.1 8.6 7 10.8 7 14a5 5 0 0 0 10 0c0-2.6-1.4-4.4-2.8-6-.8-.9-1.5-1.7-1.9-2.7-.4 1.4-1.2 2.4-2 3.4-.8 1-1.5 1.9-1.5 3.3a3 3 0 0 0 6 0c0-.7-.2-1.4-.6-2 .1 2-1.4 3.6-3.2 3.6-1.7 0-3-1.3-3-3 0-1.9 1.1-3.1 2.4-4.5C11.4 4.9 12.1 3.8 12 2Z"
+          />
+        </svg>
+        <span>{{ streakSummary }}</span>
+      </div>
       <template v-for="card in displayCards" :key="card.key">
         <div
           v-if="card.hero"
@@ -417,19 +425,6 @@ function formatProgressValue(current: number, goal: number | null) {
                   <span v-if="row.label" class="track-card-summary-label">{{ row.label }}:</span>
                   <span class="track-card-summary-value">
                     {{ row.value }}
-                    <svg
-                      v-if="row.icon === 'flame'"
-                      class="track-card-summary-icon"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M12 2c.4 2.2-.3 3.8-1.5 5.1C9.1 8.6 7 10.8 7 14a5 5 0 0 0 10 0c0-2.6-1.4-4.4-2.8-6-.8-.9-1.5-1.7-1.9-2.7-.4 1.4-1.2 2.4-2 3.4-.8 1-1.5 1.9-1.5 3.3a3 3 0 0 0 6 0c0-.7-.2-1.4-.6-2 .1 2-1.4 3.6-3.2 3.6-1.7 0-3-1.3-3-3 0-1.9 1.1-3.1 2.4-4.5C11.4 4.9 12.1 3.8 12 2Z"
-                      />
-                    </svg>
                   </span>
                 </div>
               </div>
@@ -548,10 +543,44 @@ function formatProgressValue(current: number, goal: number | null) {
   flex: 1;
   width: 100%;
   min-height: 0;
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.streak-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  min-width: 96px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 999px;
+  background: #2f2a1b;
+  color: #fbbf24;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.28),
+    0 0 0 4px var(--color-background);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.streak-badge-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .track-grid--single {
@@ -690,16 +719,6 @@ function formatProgressValue(current: number, goal: number | null) {
   color: color-mix(in srgb, var(--color-text) 88%, var(--card-accent) 12%);
   word-break: break-word;
   flex: 1 1 auto;
-}
-
-.track-card-summary-icon {
-  margin-left: 0;
-  width: 20px;
-  height: 20px;
-  display: inline-block;
-  vertical-align: -5px;
-  flex-shrink: 0;
-  color: #f59e0b;
 }
 
 .track-card-detail {
