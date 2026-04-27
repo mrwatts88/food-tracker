@@ -18,9 +18,8 @@ type DashboardCard = {
   label: string
   value: string
   detail: string
-  summaryRows?: Array<{
+  supportingLines?: Array<{
     key: string
-    label: string
     value: string
   }>
   selectMetric?: TrackMetric
@@ -37,8 +36,6 @@ type DashboardCard = {
   lockMetric?: NutritionMetric
   locked?: boolean
 }
-
-type DashboardSummaryRow = NonNullable<DashboardCard['summaryRows']>[number]
 
 const props = defineProps<{
   activeMetric: EntryMetric
@@ -212,15 +209,13 @@ const overdrawMessage = computed(() => {
   )} to ${formatNumber(status.nextEffectiveUnlockCalories)}.`
 })
 
-const nutritionCaloriesSummaryRows = computed<DashboardSummaryRow[]>(() => [
+const calorieSupportingLines = computed<NonNullable<DashboardCard['supportingLines']>>(() => [
   {
     key: 'unlock',
-    label: '',
     value: nutritionUnlockSummary.value,
   },
   {
     key: 'consumed-target',
-    label: '',
     value: consumedVsTarget.value,
   },
 ])
@@ -232,13 +227,11 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     unit: 'kCals',
     value: formatNumber(availableCalories.value),
     detail: 'Available',
-    summaryRows: nutritionCaloriesSummaryRows.value,
+    supportingLines: calorieSupportingLines.value,
     selectMetric: 'calorie',
     historyMetric: 'calorie',
     accentColor: 'var(--color-calorie-primary)',
-    hero: true,
-    emphasizedValue: false,
-    detailInBody: true,
+    hero: false,
     loading: calorieStore.loading && !calorieStore.submittingEntry,
     submitting: calorieStore.submittingEntry,
   },
@@ -271,6 +264,7 @@ const weightCard = computed<DashboardCard>(() => ({
   accentColor: 'var(--color-weight-primary)',
   hero: true,
   emphasizedValue: true,
+  detailInBody: true,
   loading: weightStore.loading && !weightStore.submittingEntry,
   submitting: weightStore.submittingEntry,
 }))
@@ -550,7 +544,7 @@ function saveNutritionLocks() {
           </div>
           <div
             class="track-card-body track-card-body--hero"
-            :class="{ 'track-card-body--with-supporting': Boolean(card.summaryRows) }"
+            :class="{ 'track-card-body--with-supporting': Boolean(card.supportingLines?.length) }"
           >
             <div
               v-if="card.loading"
@@ -563,23 +557,24 @@ function saveNutritionLocks() {
                 :style="{ '--spinner-color': card.accentColor ?? 'var(--color-calorie-primary)' }"
               ></span>
             </div>
-            <template v-else-if="card.summaryRows">
+            <template v-else>
               <div
-                class="track-card-summary"
-                :class="{ 'track-card-summary--submitting': card.submitting }"
+                v-if="card.supportingLines?.length"
+                class="track-card-supporting"
+                :class="{ 'track-card-supporting--submitting': card.submitting }"
               >
                 <div
-                  v-for="row in card.summaryRows"
-                  :key="row.key"
-                  class="track-card-summary-row"
+                  v-for="line in card.supportingLines"
+                  :key="line.key"
+                  class="track-card-supporting-line"
                 >
-                  <span v-if="row.label" class="track-card-summary-label">{{ row.label }}:</span>
-                  <span class="track-card-summary-value">
-                    {{ row.value }}
-                  </span>
+                  {{ line.value }}
                 </div>
               </div>
-              <div v-if="card.value || card.detailInBody" class="track-card-value-stack track-card-value-stack--bottom">
+              <div
+                v-if="card.value || card.detailInBody"
+                class="track-card-value-stack track-card-value-stack--bottom"
+              >
                 <div
                   v-if="card.value"
                   class="track-card-value"
@@ -596,20 +591,6 @@ function saveNutritionLocks() {
                   {{ card.detail }}
                 </div>
               </div>
-            </template>
-            <template v-else>
-              <div
-                class="track-card-value"
-                :class="{
-                  'track-card-value--hero': card.emphasizedValue,
-                  'track-card-value--submitting': card.submitting,
-                  'track-card-value--hero-compact': card.compactValue,
-                }"
-                :style="{ color: card.accentColor }"
-              >
-                {{ card.value }}
-              </div>
-              <div v-if="card.detailInBody" class="track-card-detail">{{ card.detail }}</div>
               <div
                 v-if="card.detailInBody && card.warning"
                 class="track-card-detail track-card-detail--warning"
@@ -618,10 +599,7 @@ function saveNutritionLocks() {
               </div>
             </template>
           </div>
-          <div
-            v-if="!card.detailInBody && card.detail"
-            class="track-card-detail"
-          >
+          <div v-if="!card.detailInBody && card.detail" class="track-card-detail">
             {{ card.detail }}
           </div>
           <div
@@ -738,15 +716,31 @@ function saveNutritionLocks() {
                 :style="{ '--spinner-color': card.accentColor ?? 'var(--color-calorie-primary)' }"
               ></span>
             </div>
-            <div
-              v-else
-              class="track-card-value"
-              :class="{ 'track-card-value--submitting': card.submitting }"
-              :style="{ color: card.accentColor ?? 'var(--color-text)' }"
-            >
-              {{ card.value }}
-            </div>
-            <div class="track-card-detail">{{ card.detail }}</div>
+            <template v-else>
+              <div
+                v-if="card.supportingLines?.length"
+                class="track-card-supporting"
+                :class="{ 'track-card-supporting--submitting': card.submitting }"
+              >
+                <div
+                  v-for="line in card.supportingLines"
+                  :key="line.key"
+                  class="track-card-supporting-line"
+                >
+                  {{ line.value }}
+                </div>
+              </div>
+              <div class="track-card-value-stack track-card-value-stack--bottom">
+                <div
+                  class="track-card-value"
+                  :class="{ 'track-card-value--submitting': card.submitting }"
+                  :style="{ color: card.accentColor ?? 'var(--color-text)' }"
+                >
+                  {{ card.value }}
+                </div>
+                <div class="track-card-detail">{{ card.detail }}</div>
+              </div>
+            </template>
             <div v-if="card.warning" class="track-card-detail track-card-detail--warning">
               {{ card.warning }}
             </div>
@@ -923,6 +917,26 @@ function saveNutritionLocks() {
   opacity: 0.45;
 }
 
+.track-card-supporting {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-card-supporting--submitting {
+  opacity: 0.45;
+}
+
+.track-card-supporting-line {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--color-text) 88%, var(--card-accent) 12%);
+  word-break: break-word;
+}
+
 .track-card-value-stack {
   display: flex;
   flex-direction: column;
@@ -931,43 +945,6 @@ function saveNutritionLocks() {
 
 .track-card-value-stack--bottom {
   margin-top: auto;
-}
-
-.track-card-summary {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.track-card-summary--submitting {
-  opacity: 0.45;
-}
-
-.track-card-summary-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-.track-card-summary-label {
-  flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.track-card-summary-value {
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.25;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--color-text) 88%, var(--card-accent) 12%);
-  word-break: break-word;
-  flex: 1 1 auto;
 }
 
 .track-card-detail {
@@ -1009,7 +986,7 @@ function saveNutritionLocks() {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .track-card-lock-overlay {
@@ -1037,11 +1014,16 @@ function saveNutritionLocks() {
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: all 0.2s ease;
-  padding: 8px;
+  padding: 6px;
   background: var(--color-surface);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.icon-button svg {
+  width: 24px;
+  height: 24px;
 }
 
 .icon-button:active {
@@ -1078,7 +1060,12 @@ function saveNutritionLocks() {
   }
 
   .icon-button {
-    padding: 7px;
+    padding: 5px;
+  }
+
+  .icon-button svg {
+    width: 22px;
+    height: 22px;
   }
 
   .track-card-value {
@@ -1097,15 +1084,11 @@ function saveNutritionLocks() {
     font-size: 11px;
   }
 
-  .track-card-summary {
+  .track-card-supporting {
     gap: 3px;
   }
 
-  .track-card-summary-label {
-    font-size: 10px;
-  }
-
-  .track-card-summary-value {
+  .track-card-supporting-line {
     font-size: 12px;
   }
 }
