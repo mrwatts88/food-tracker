@@ -5,13 +5,13 @@ import {
   nutritionMetricColorVars,
   nutritionMetricLabels,
   nutritionMetrics,
-  nutritionMetricUnits
+  nutritionMetricUnits,
 } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { EntryMetric, TrackMetric } from '@/types'
+import type { EntryMetric, NutritionMetric, TrackMetric } from '@/types'
 
 type DashboardCard = {
   key: string
@@ -34,6 +34,8 @@ type DashboardCard = {
   loading?: boolean
   submitting?: boolean
   warning?: string | null
+  lockMetric?: NutritionMetric
+  locked?: boolean
 }
 
 type DashboardSummaryRow = NonNullable<DashboardCard['summaryRows']>[number]
@@ -53,7 +55,12 @@ const appStore = useAppStore()
 const nowTick = ref(Date.now())
 const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
+const lockedNutritionMetrics = ref<Set<NutritionMetric>>(new Set())
 let intervalId: number | null = null
+
+const nutritionLockStorageKey = computed(
+  () => `nutrition-locks:${formatLocalDate(new Date(nowTick.value))}`,
+)
 
 const isWeightMode = computed(() => props.activeMetric === 'weight')
 
@@ -69,7 +76,7 @@ const consumedVsTarget = computed(() => {
   }
 
   return `${formatNumber(unlockStatus.value.consumedCalories)} / ${formatNumber(
-    unlockStatus.value.dailyTargetCalories
+    unlockStatus.value.dailyTargetCalories,
   )}`
 })
 
@@ -89,7 +96,7 @@ const nextUnlockTimeLabel = computed(() => {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: status.timezone
+    timeZone: status.timezone,
   }).format(nextUnlockDate)
 })
 
@@ -113,7 +120,11 @@ const estimatedServerNowMs = computed(() => {
 const countdownMs = computed(() => {
   const status = unlockStatus.value
 
-  if (!status?.nextUnlockAt || status.allCaloriesUnlockedToday || estimatedServerNowMs.value === null) {
+  if (
+    !status?.nextUnlockAt ||
+    status.allCaloriesUnlockedToday ||
+    estimatedServerNowMs.value === null
+  ) {
     return null
   }
 
@@ -204,7 +215,7 @@ const overdrawMessage = computed(() => {
   }
 
   return `Overdrawn by ${formatNumber(status.overdrawCalories)}. Next reduced from ${formatNumber(
-    status.nextScheduledUnlockCalories
+    status.nextScheduledUnlockCalories,
   )} to ${formatNumber(status.nextEffectiveUnlockCalories)}.`
 })
 
@@ -212,18 +223,18 @@ const nutritionCaloriesSummaryRows = computed<DashboardSummaryRow[]>(() => [
   {
     key: 'available',
     label: '',
-    value: `${formatNumber(availableCalories.value)} available`
+    value: `${formatNumber(availableCalories.value)} available`,
   },
   {
     key: 'unlock',
     label: '',
-    value: nutritionUnlockSummary.value
+    value: nutritionUnlockSummary.value,
   },
   {
     key: 'consumed-target',
     label: '',
-    value: consumedVsTarget.value
-  }
+    value: consumedVsTarget.value,
+  },
 ])
 
 const nutritionCards = computed<DashboardCard[]>(() => [
@@ -240,20 +251,25 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     hero: true,
     emphasizedValue: false,
     loading: calorieStore.loading && !calorieStore.submittingEntry,
-    submitting: calorieStore.submittingEntry
+    submitting: calorieStore.submittingEntry,
   },
-  ...nutritionMetrics.map(metric => ({
+  ...nutritionMetrics.map((metric) => ({
     key: `nutrition-${metric}`,
     label: nutritionMetricLabels[metric],
     unit: nutritionMetricUnits[metric],
-    value: formatProgressValue(nutritionStore.totalsByMetric[metric], nutritionStore.goalsByMetric[metric] ?? null),
+    value: formatProgressValue(
+      nutritionStore.totalsByMetric[metric],
+      nutritionStore.goalsByMetric[metric] ?? null,
+    ),
     detail: 'Total today',
     selectMetric: metric,
     historyMetric: metric,
+    lockMetric: metric,
+    locked: lockedNutritionMetrics.value.has(metric),
     accentColor: nutritionMetricColorVars[metric],
     loading: nutritionStore.loadingByMetric[metric] && !nutritionStore.submittingByMetric[metric],
-    submitting: nutritionStore.submittingByMetric[metric]
-  }))
+    submitting: nutritionStore.submittingByMetric[metric],
+  })),
 ])
 
 const weightCard = computed<DashboardCard>(() => ({
@@ -267,25 +283,31 @@ const weightCard = computed<DashboardCard>(() => ({
   hero: true,
   emphasizedValue: true,
   loading: weightStore.loading && !weightStore.submittingEntry,
-  submitting: weightStore.submittingEntry
+  submitting: weightStore.submittingEntry,
 }))
 
 const displayCards = computed<DashboardCard[]>(() =>
-  isWeightMode.value ? [weightCard.value] : nutritionCards.value
+  isWeightMode.value ? [weightCard.value] : nutritionCards.value,
 )
 
 watch(
   () => unlockStatus.value?.nextUnlockAt,
   () => {
     boundaryRefreshTarget.value = null
-  }
+  },
 )
 
 onMounted(() => {
+  loadNutritionLocks()
+
   intervalId = window.setInterval(() => {
     nowTick.value = Date.now()
     maybeRefreshUnlockStatus()
   }, 1000)
+})
+
+watch(nutritionLockStorageKey, () => {
+  loadNutritionLocks()
 })
 
 onBeforeUnmount(() => {
@@ -327,6 +349,19 @@ function openHistory(metric?: EntryMetric) {
   appStore.openDrawer(metric)
 }
 
+function toggleNutritionLock(metric: NutritionMetric) {
+  const nextLockedMetrics = new Set(lockedNutritionMetrics.value)
+
+  if (nextLockedMetrics.has(metric)) {
+    nextLockedMetrics.delete(metric)
+  } else {
+    nextLockedMetrics.add(metric)
+  }
+
+  lockedNutritionMetrics.value = nextLockedMetrics
+  saveNutritionLocks()
+}
+
 function selectMetric(metric?: TrackMetric) {
   if (!metric || props.activeMetric === metric) {
     return
@@ -341,7 +376,7 @@ function formatCountdown(milliseconds: number) {
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':')
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
 }
 
 function formatNumber(value: number) {
@@ -351,6 +386,47 @@ function formatNumber(value: number) {
 function formatProgressValue(current: number, goal: number | null) {
   const goalValue = goal === null ? '--' : formatNumber(goal)
   return `${formatNumber(current)} / ${goalValue}`
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function loadNutritionLocks() {
+  const storedMetrics = window.localStorage.getItem(nutritionLockStorageKey.value)
+
+  if (!storedMetrics) {
+    lockedNutritionMetrics.value = new Set()
+    return
+  }
+
+  try {
+    const parsedMetrics = JSON.parse(storedMetrics)
+
+    if (!Array.isArray(parsedMetrics)) {
+      lockedNutritionMetrics.value = new Set()
+      return
+    }
+
+    lockedNutritionMetrics.value = new Set(
+      parsedMetrics.filter((metric): metric is NutritionMetric =>
+        nutritionMetrics.includes(metric as NutritionMetric),
+      ),
+    )
+  } catch {
+    lockedNutritionMetrics.value = new Set()
+  }
+}
+
+function saveNutritionLocks() {
+  window.localStorage.setItem(
+    nutritionLockStorageKey.value,
+    JSON.stringify([...lockedNutritionMetrics.value]),
+  )
 }
 </script>
 
@@ -378,7 +454,11 @@ function formatProgressValue(current: number, goal: number | null) {
           :class="[
             'track-card',
             'track-card--primary',
-            { 'track-card--selectable': Boolean(card.selectMetric), 'track-card--selected': props.activeMetric === card.selectMetric }
+            {
+              'track-card--selectable': Boolean(card.selectMetric),
+              'track-card--selected': props.activeMetric === card.selectMetric,
+              'track-card--locked': card.locked,
+            },
           ]"
           :style="{ '--card-accent': card.accentColor ?? 'var(--color-calorie-primary)' }"
           @click="selectMetric(card.selectMetric)"
@@ -388,24 +468,69 @@ function formatProgressValue(current: number, goal: number | null) {
               <div class="track-card-label">{{ card.label }}</div>
               <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
             </div>
-            <button
-              v-if="card.historyMetric"
-              class="history-button"
-              :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
-              :aria-label="`Open ${card.label.toLowerCase()} history`"
-              :title="`Open ${card.label.toLowerCase()} history`"
-              @click.stop="openHistory(card.historyMetric)"
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
+            <div class="track-card-actions">
+              <button
+                v-if="card.historyMetric"
+                class="icon-button"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-label="`Open ${card.label.toLowerCase()} history`"
+                :title="`Open ${card.label.toLowerCase()} history`"
+                @click.stop="openHistory(card.historyMetric)"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="card.lockMetric"
+                class="icon-button lock-button"
+                :class="{ 'lock-button--active': card.locked }"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-pressed="card.locked ? 'true' : 'false'"
+                :aria-label="`${card.locked ? 'Unlock' : 'Lock'} ${card.label.toLowerCase()} tile for today`"
+                :title="`${card.locked ? 'Unlock' : 'Lock'} ${card.label.toLowerCase()} for today`"
+                @click.stop="toggleNutritionLock(card.lockMetric)"
+              >
+                <svg
+                  v-if="card.locked"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
                   stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-                />
-              </svg>
-            </button>
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"
+                  />
+                </svg>
+                <svg
+                  v-else
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12v9H6z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="track-card-body track-card-body--hero">
             <div
@@ -420,7 +545,10 @@ function formatProgressValue(current: number, goal: number | null) {
               ></span>
             </div>
             <template v-else-if="card.summaryRows">
-              <div class="track-card-summary" :class="{ 'track-card-summary--submitting': card.submitting }">
+              <div
+                class="track-card-summary"
+                :class="{ 'track-card-summary--submitting': card.submitting }"
+              >
                 <div v-for="row in card.summaryRows" :key="row.key" class="track-card-summary-row">
                   <span v-if="row.label" class="track-card-summary-label">{{ row.label }}:</span>
                   <span class="track-card-summary-value">
@@ -435,21 +563,40 @@ function formatProgressValue(current: number, goal: number | null) {
                 :class="{
                   'track-card-value--hero': card.emphasizedValue,
                   'track-card-value--submitting': card.submitting,
-                  'track-card-value--hero-compact': card.compactValue
+                  'track-card-value--hero-compact': card.compactValue,
                 }"
                 :style="{ color: card.accentColor }"
               >
                 {{ card.value }}
               </div>
               <div v-if="card.detailInBody" class="track-card-detail">{{ card.detail }}</div>
-              <div v-if="card.detailInBody && card.warning" class="track-card-detail track-card-detail--warning">
+              <div
+                v-if="card.detailInBody && card.warning"
+                class="track-card-detail track-card-detail--warning"
+              >
                 {{ card.warning }}
               </div>
             </template>
           </div>
-          <div v-if="!card.detailInBody && card.detail" class="track-card-detail">{{ card.detail }}</div>
-          <div v-if="!card.detailInBody && card.warning" class="track-card-detail track-card-detail--warning">
+          <div v-if="!card.detailInBody && card.detail" class="track-card-detail">
+            {{ card.detail }}
+          </div>
+          <div
+            v-if="!card.detailInBody && card.warning"
+            class="track-card-detail track-card-detail--warning"
+          >
             {{ card.warning }}
+          </div>
+          <div v-if="card.locked" class="track-card-lock-overlay" aria-hidden="true">
+            <svg class="track-card-lock-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"
+              />
+            </svg>
           </div>
         </div>
 
@@ -460,8 +607,9 @@ function formatProgressValue(current: number, goal: number | null) {
             {
               'track-card--accented': Boolean(card.accentColor),
               'track-card--selectable': Boolean(card.selectMetric),
-              'track-card--selected': props.activeMetric === card.selectMetric
-            }
+              'track-card--selected': props.activeMetric === card.selectMetric,
+              'track-card--locked': card.locked,
+            },
           ]"
           :style="card.accentColor ? { '--card-accent': card.accentColor } : undefined"
           @click="selectMetric(card.selectMetric)"
@@ -471,24 +619,69 @@ function formatProgressValue(current: number, goal: number | null) {
               <div class="track-card-label">{{ card.label }}</div>
               <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
             </div>
-            <button
-              v-if="card.historyMetric"
-              class="history-button"
-              :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
-              :aria-label="`Open ${card.label.toLowerCase()} history`"
-              :title="`Open ${card.label.toLowerCase()} history`"
-              @click.stop="openHistory(card.historyMetric)"
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
+            <div class="track-card-actions">
+              <button
+                v-if="card.historyMetric"
+                class="icon-button"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-label="`Open ${card.label.toLowerCase()} history`"
+                :title="`Open ${card.label.toLowerCase()} history`"
+                @click.stop="openHistory(card.historyMetric)"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="card.lockMetric"
+                class="icon-button lock-button"
+                :class="{ 'lock-button--active': card.locked }"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-pressed="card.locked ? 'true' : 'false'"
+                :aria-label="`${card.locked ? 'Unlock' : 'Lock'} ${card.label.toLowerCase()} tile for today`"
+                :title="`${card.locked ? 'Unlock' : 'Lock'} ${card.label.toLowerCase()} for today`"
+                @click.stop="toggleNutritionLock(card.lockMetric)"
+              >
+                <svg
+                  v-if="card.locked"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
                   stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-                />
-              </svg>
-            </button>
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"
+                  />
+                </svg>
+                <svg
+                  v-else
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12v9H6z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="track-card-body">
             <div
@@ -514,6 +707,17 @@ function formatProgressValue(current: number, goal: number | null) {
             <div v-if="card.warning" class="track-card-detail track-card-detail--warning">
               {{ card.warning }}
             </div>
+          </div>
+          <div v-if="card.locked" class="track-card-lock-overlay" aria-hidden="true">
+            <svg class="track-card-lock-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"
+              />
+            </svg>
           </div>
         </div>
       </template>
@@ -589,12 +793,17 @@ function formatProgressValue(current: number, goal: number | null) {
 }
 
 .track-card {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   min-height: 0;
   padding: 14px;
   border-radius: var(--border-radius);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, white 6%), var(--color-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 94%, white 6%),
+    var(--color-surface)
+  );
   border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
   display: flex;
   flex-direction: column;
@@ -604,8 +813,11 @@ function formatProgressValue(current: number, goal: number | null) {
 .track-card--primary,
 .track-card--accented {
   border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--card-accent) 14%, transparent), var(--color-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-accent) 14%, transparent),
+    var(--color-surface)
+  );
 }
 
 .track-card--selectable {
@@ -617,7 +829,18 @@ function formatProgressValue(current: number, goal: number | null) {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-accent) 70%, transparent);
 }
 
+.track-card--locked {
+  border-color: color-mix(in srgb, var(--card-accent) 28%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-accent) 7%, transparent),
+    var(--color-surface)
+  );
+}
+
 .track-card-header {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -643,6 +866,8 @@ function formatProgressValue(current: number, goal: number | null) {
 }
 
 .track-card-body {
+  position: relative;
+  z-index: 2;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -722,6 +947,8 @@ function formatProgressValue(current: number, goal: number | null) {
 }
 
 .track-card-detail {
+  position: relative;
+  z-index: 2;
   font-size: 12px;
   color: var(--color-text-secondary);
   line-height: 1.35;
@@ -753,7 +980,35 @@ function formatProgressValue(current: number, goal: number | null) {
   animation: spin 0.8s linear infinite;
 }
 
-.history-button {
+.track-card-actions {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-card-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--card-accent) 72%, white 28%);
+  background: rgba(0, 0, 0, 0.46);
+  pointer-events: none;
+}
+
+.track-card-lock-mark {
+  width: min(32%, 56px);
+  height: auto;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.28));
+  opacity: 0.92;
+  transform: translate(-4px, 2px);
+}
+
+.icon-button {
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
@@ -762,14 +1017,24 @@ function formatProgressValue(current: number, goal: number | null) {
   background: var(--color-surface);
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
-.history-button:active {
+.icon-button:active {
   transform: scale(0.98);
 }
 
-.history-button:active {
+.icon-button:active {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.lock-button {
+  opacity: 0.58;
+}
+
+.lock-button--active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--card-accent) 18%, var(--color-surface));
 }
 
 @media (max-width: 428px) {
@@ -781,7 +1046,7 @@ function formatProgressValue(current: number, goal: number | null) {
     padding: 12px;
   }
 
-  .history-button {
+  .icon-button {
     padding: 7px;
   }
 
