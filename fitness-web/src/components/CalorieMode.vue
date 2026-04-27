@@ -43,7 +43,7 @@ const preferredRecordingMimeTypes = [
   'audio/webm',
   'audio/mp4',
   'audio/ogg;codecs=opus',
-  'audio/ogg'
+  'audio/ogg',
 ]
 
 const keyboardAccentColor = computed(() => {
@@ -63,9 +63,21 @@ const voiceSupported = computed(
     typeof window !== 'undefined' &&
     typeof navigator !== 'undefined' &&
     typeof MediaRecorder !== 'undefined' &&
-    Boolean(navigator.mediaDevices?.getUserMedia)
+    Boolean(navigator.mediaDevices?.getUserMedia),
 )
 const showTrackActions = computed(() => appStore.mode === 'calorie')
+
+const streakSummary = computed(() => {
+  const status = calorieStore.unlockStatus
+
+  if (!status) {
+    return '...'
+  }
+
+  const streak = status.dailyGoalStreak
+  const noun = streak === 1 ? 'day' : 'days'
+  return `${streak.toLocaleString()} ${noun}`
+})
 
 const keyboardSubmitting = computed(() => {
   if (entryDividerStore.submitting) {
@@ -184,7 +196,9 @@ function getPreferredRecordingMimeType() {
     return null
   }
 
-  return preferredRecordingMimeTypes.find(mimeType => MediaRecorder.isTypeSupported(mimeType)) ?? null
+  return (
+    preferredRecordingMimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? null
+  )
 }
 
 async function uploadVoiceEntry(blob: Blob) {
@@ -195,8 +209,8 @@ async function uploadVoiceEntry(blob: Blob) {
   formData.set(
     'audio',
     new File([blob], `voice-entry.${getAudioExtension(mimeType)}`, {
-      type: mimeType
-    })
+      type: mimeType,
+    }),
   )
 
   try {
@@ -236,7 +250,7 @@ async function startVoiceListening() {
 
   recordingMimeType = mediaRecorder.mimeType || preferredMimeType
 
-  mediaRecorder.addEventListener('dataavailable', event => {
+  mediaRecorder.addEventListener('dataavailable', (event) => {
     if (event.data.size > 0) {
       if (!recordingMimeType && event.data.type) {
         recordingMimeType = event.data.type
@@ -278,7 +292,7 @@ async function startVoiceListening() {
     await uploadVoiceEntry(blob)
   })
 
-  mediaRecorder.addEventListener('error', event => {
+  mediaRecorder.addEventListener('error', (event) => {
     console.error('MediaRecorder error:', event)
     resetVoiceRecordingState()
     voiceError.value = 'Recording failed before the audio could be sent.'
@@ -374,12 +388,13 @@ async function confirmVoicePreview() {
     console.error('Failed to save voice entry totals:', error)
     voicePreview.value = null
     voiceState.value = 'idle'
-    voiceError.value = 'One or more entries failed to save. Totals were refreshed to match what was stored.'
+    voiceError.value =
+      'One or more entries failed to save. Totals were refreshed to match what was stored.'
   } finally {
     savingVoicePreview.value = false
     await Promise.all([
       calorieStore.refreshData({ setLoading: false }),
-      nutritionStore.refreshData({ setLoading: false })
+      nutritionStore.refreshData({ setLoading: false }),
     ])
   }
 }
@@ -396,8 +411,26 @@ onBeforeUnmount(() => {
 <template>
   <div class="calorie-mode">
     <div class="display-section">
-      <CalorieDisplay :active-metric="appStore.activeMetric" @select-metric="handleTrackMetricSelect" />
+      <CalorieDisplay
+        :active-metric="appStore.activeMetric"
+        @select-metric="handleTrackMetricSelect"
+      />
       <div v-if="showTrackActions" class="track-actions">
+        <div class="track-streak-badge" aria-label="Daily goal streak">
+          <svg
+            class="track-streak-icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 2c.4 2.2-.3 3.8-1.5 5.1C9.1 8.6 7 10.8 7 14a5 5 0 0 0 10 0c0-2.6-1.4-4.4-2.8-6-.8-.9-1.5-1.7-1.9-2.7-.4 1.4-1.2 2.4-2 3.4-.8 1-1.5 1.9-1.5 3.3a3 3 0 0 0 6 0c0-.7-.2-1.4-.6-2 .1 2-1.4 3.6-3.2 3.6-1.7 0-3-1.3-3-3 0-1.9 1.1-3.1 2.4-4.5C11.4 4.9 12.1 3.8 12 2Z"
+            />
+          </svg>
+          <span>{{ streakSummary }}</span>
+        </div>
         <button
           class="track-action-button track-action-button--divider"
           :style="{ '--track-action-accent': keyboardAccentColor }"
@@ -436,7 +469,7 @@ onBeforeUnmount(() => {
           :supported="voiceSupported"
           :disabled="savingVoicePreview"
           :seconds-remaining="recordingSecondsRemaining"
-        @press="handleVoicePress"
+          @press="handleVoicePress"
         />
       </div>
     </div>
@@ -481,7 +514,7 @@ onBeforeUnmount(() => {
 
 .track-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
@@ -495,6 +528,8 @@ onBeforeUnmount(() => {
 }
 
 .track-action-button {
+  width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 10px 12px;
   border: 1px solid transparent;
@@ -524,6 +559,30 @@ onBeforeUnmount(() => {
 .settings-icon {
   width: 20px;
   height: 20px;
+}
+
+.track-streak-badge {
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 6px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: var(--border-radius);
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.track-streak-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .track-action-button:active {
@@ -574,5 +633,4 @@ onBeforeUnmount(() => {
     transform: rotate(360deg);
   }
 }
-
 </style>

@@ -56,6 +56,11 @@ const nowTick = ref(Date.now())
 const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
 const lockedNutritionMetrics = ref<Set<NutritionMetric>>(new Set())
+const submissionStartTotals = ref<Record<NutritionMetric, number | null>>({
+  protein: null,
+  sugar: null,
+  caffeine: null,
+})
 let intervalId: number | null = null
 
 const nutritionLockStorageKey = computed(
@@ -191,18 +196,6 @@ const nutritionUnlockSummary = computed(() => {
   return `+${formatNumber(status.nextEffectiveUnlockCalories)} in ${nextUnlockPrimary.value}`
 })
 
-const streakSummary = computed(() => {
-  const status = unlockStatus.value
-
-  if (!status) {
-    return 'Loading streak'
-  }
-
-  const streak = status.dailyGoalStreak
-  const noun = streak === 1 ? 'day' : 'days'
-  return `${formatNumber(streak)} ${noun}`
-})
-
 const overdrawMessage = computed(() => {
   const status = unlockStatus.value
 
@@ -221,11 +214,6 @@ const overdrawMessage = computed(() => {
 
 const nutritionCaloriesSummaryRows = computed<DashboardSummaryRow[]>(() => [
   {
-    key: 'available',
-    label: '',
-    value: `${formatNumber(availableCalories.value)} available`,
-  },
-  {
     key: 'unlock',
     label: '',
     value: nutritionUnlockSummary.value,
@@ -242,14 +230,15 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     key: 'nutrition-calories',
     label: 'Calories',
     unit: 'kCals',
-    value: '',
-    detail: '',
+    value: formatNumber(availableCalories.value),
+    detail: 'Available',
     summaryRows: nutritionCaloriesSummaryRows.value,
     selectMetric: 'calorie',
     historyMetric: 'calorie',
     accentColor: 'var(--color-calorie-primary)',
     hero: true,
     emphasizedValue: false,
+    detailInBody: true,
     loading: calorieStore.loading && !calorieStore.submittingEntry,
     submitting: calorieStore.submittingEntry,
   },
@@ -310,6 +299,23 @@ watch(nutritionLockStorageKey, () => {
   loadNutritionLocks()
 })
 
+for (const metric of nutritionMetrics) {
+  watch(
+    () => nutritionStore.submittingByMetric[metric],
+    (isSubmitting, wasSubmitting) => {
+      if (isSubmitting && !wasSubmitting) {
+        submissionStartTotals.value[metric] = nutritionStore.totalsByMetric[metric]
+        return
+      }
+
+      if (!isSubmitting && wasSubmitting) {
+        maybeAutoLockNutritionMetric(metric)
+        submissionStartTotals.value[metric] = null
+      }
+    },
+  )
+}
+
 onBeforeUnmount(() => {
   if (intervalId !== null) {
     window.clearInterval(intervalId)
@@ -360,6 +366,31 @@ function toggleNutritionLock(metric: NutritionMetric) {
 
   lockedNutritionMetrics.value = nextLockedMetrics
   saveNutritionLocks()
+}
+
+function lockNutritionMetric(metric: NutritionMetric) {
+  if (lockedNutritionMetrics.value.has(metric)) {
+    return
+  }
+
+  const nextLockedMetrics = new Set(lockedNutritionMetrics.value)
+  nextLockedMetrics.add(metric)
+  lockedNutritionMetrics.value = nextLockedMetrics
+  saveNutritionLocks()
+}
+
+function maybeAutoLockNutritionMetric(metric: NutritionMetric) {
+  const goal = nutritionStore.goalsByMetric[metric] ?? null
+  const startTotal = submissionStartTotals.value[metric]
+  const currentTotal = nutritionStore.totalsByMetric[metric]
+
+  if (goal === null || startTotal === null) {
+    return
+  }
+
+  if (startTotal < goal && currentTotal >= goal) {
+    lockNutritionMetric(metric)
+  }
 }
 
 function selectMetric(metric?: TrackMetric) {
@@ -433,21 +464,6 @@ function saveNutritionLocks() {
 <template>
   <div class="calorie-display">
     <div :class="['track-grid', { 'track-grid--single': displayCards.length === 1 }]">
-      <div v-if="!isWeightMode" class="streak-badge" aria-label="Daily goal streak">
-        <svg
-          class="streak-badge-icon"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            d="M12 2c.4 2.2-.3 3.8-1.5 5.1C9.1 8.6 7 10.8 7 14a5 5 0 0 0 10 0c0-2.6-1.4-4.4-2.8-6-.8-.9-1.5-1.7-1.9-2.7-.4 1.4-1.2 2.4-2 3.4-.8 1-1.5 1.9-1.5 3.3a3 3 0 0 0 6 0c0-.7-.2-1.4-.6-2 .1 2-1.4 3.6-3.2 3.6-1.7 0-3-1.3-3-3 0-1.9 1.1-3.1 2.4-4.5C11.4 4.9 12.1 3.8 12 2Z"
-          />
-        </svg>
-        <span>{{ streakSummary }}</span>
-      </div>
       <template v-for="card in displayCards" :key="card.key">
         <div
           v-if="card.hero"
@@ -532,7 +548,10 @@ function saveNutritionLocks() {
               </button>
             </div>
           </div>
-          <div class="track-card-body track-card-body--hero">
+          <div
+            class="track-card-body track-card-body--hero"
+            :class="{ 'track-card-body--with-supporting': Boolean(card.summaryRows) }"
+          >
             <div
               v-if="card.loading"
               class="loading-indicator"
@@ -549,11 +568,32 @@ function saveNutritionLocks() {
                 class="track-card-summary"
                 :class="{ 'track-card-summary--submitting': card.submitting }"
               >
-                <div v-for="row in card.summaryRows" :key="row.key" class="track-card-summary-row">
+                <div
+                  v-for="row in card.summaryRows"
+                  :key="row.key"
+                  class="track-card-summary-row"
+                >
                   <span v-if="row.label" class="track-card-summary-label">{{ row.label }}:</span>
                   <span class="track-card-summary-value">
                     {{ row.value }}
                   </span>
+                </div>
+              </div>
+              <div v-if="card.value || card.detailInBody" class="track-card-value-stack track-card-value-stack--bottom">
+                <div
+                  v-if="card.value"
+                  class="track-card-value"
+                  :class="{
+                    'track-card-value--hero': card.emphasizedValue,
+                    'track-card-value--submitting': card.submitting,
+                    'track-card-value--hero-compact': card.compactValue,
+                  }"
+                  :style="{ color: card.accentColor }"
+                >
+                  {{ card.value }}
+                </div>
+                <div v-if="card.detailInBody" class="track-card-detail">
+                  {{ card.detail }}
                 </div>
               </div>
             </template>
@@ -578,7 +618,10 @@ function saveNutritionLocks() {
               </div>
             </template>
           </div>
-          <div v-if="!card.detailInBody && card.detail" class="track-card-detail">
+          <div
+            v-if="!card.detailInBody && card.detail"
+            class="track-card-detail"
+          >
             {{ card.detail }}
           </div>
           <div
@@ -754,39 +797,6 @@ function saveNutritionLocks() {
   gap: 10px;
 }
 
-.streak-badge {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  min-width: 96px;
-  min-height: 42px;
-  padding: 8px 12px;
-  border: 1px solid rgba(245, 158, 11, 0.5);
-  border-radius: 999px;
-  background: #2f2a1b;
-  color: #fbbf24;
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.28),
-    0 0 0 4px var(--color-background);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.streak-badge-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
 .track-grid--single {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -880,6 +890,10 @@ function saveNutritionLocks() {
   align-items: flex-start;
 }
 
+.track-card-body--with-supporting {
+  justify-content: flex-start;
+}
+
 .track-card-label {
   font-size: 11px;
   color: var(--color-text-secondary);
@@ -907,6 +921,16 @@ function saveNutritionLocks() {
 
 .track-card-value--submitting {
   opacity: 0.45;
+}
+
+.track-card-value-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-card-value-stack--bottom {
+  margin-top: auto;
 }
 
 .track-card-summary {
@@ -1029,12 +1053,19 @@ function saveNutritionLocks() {
 }
 
 .lock-button {
+  background: var(--color-surface);
+}
+
+.lock-button svg {
   opacity: 0.58;
 }
 
 .lock-button--active {
-  opacity: 1;
   background: color-mix(in srgb, var(--card-accent) 18%, var(--color-surface));
+}
+
+.lock-button--active svg {
+  opacity: 1;
 }
 
 @media (max-width: 428px) {
