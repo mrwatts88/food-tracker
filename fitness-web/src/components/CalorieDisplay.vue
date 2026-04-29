@@ -911,7 +911,7 @@ function saveNutritionLocks() {
 
 .track-card-label {
   min-width: 0;
-  font-size: 10px;
+  font-size: 16px;
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.8px;

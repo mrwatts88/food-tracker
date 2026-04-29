@@ -82,8 +82,7 @@ const streakSummary = computed(() => {
   }
 
   const streak = status.dailyGoalStreak
-  const noun = streak === 1 ? 'day' : 'days'
-  return `${streak.toLocaleString()} ${noun}`
+  return `${streak.toLocaleString()}`
 })
 
 const keyboardSubmitting = computed(() => {
@@ -580,7 +579,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
