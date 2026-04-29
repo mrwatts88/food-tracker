@@ -10,6 +10,7 @@
   --color-protein-primary: #3b82f6;
   --color-sugar-primary: #f97316;
   --color-caffeine-primary: #14b8a6;
+  --color-steps-primary: #a3e635;
   --color-weight-primary: #f59e0b;
   --color-background: #1f2937;
   --color-surface: #374151;

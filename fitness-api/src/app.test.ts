@@ -14,6 +14,7 @@ import {
   entryDividers,
   nutritionGoals,
   proteinEntries,
+  stepsEntries,
   schema,
   sugarEntries,
   weightEntries
@@ -148,13 +149,18 @@ async function clearTrackingData() {
   await db.delete(proteinEntries)
   await db.delete(sugarEntries)
   await db.delete(caffeineEntries)
+  await db.delete(stepsEntries)
   await db.delete(entryDividers)
   await db.delete(dailyGoalDays)
   await db.delete(dailyGoalStreakState)
   await db.delete(weightEntries)
 }
 
-async function addEntryAt(path: 'calories' | 'protein' | 'sugar' | 'caffeine', createdAt: Date, amount: number) {
+async function addEntryAt(
+  path: 'calories' | 'protein' | 'sugar' | 'caffeine' | 'steps',
+  createdAt: Date,
+  amount: number
+) {
   const entryApp = createTestApp({ now: createdAt })
   const response = await entryApp.request(`/api/${path}`, {
     method: 'POST',
@@ -170,6 +176,7 @@ async function addSuccessfulDailyGoalEntries(createdAt: Date) {
   await addEntryAt('protein', createdAt, 120)
   await addEntryAt('sugar', createdAt, 50)
   await addEntryAt('caffeine', createdAt, 100)
+  await addEntryAt('steps', createdAt, 8000)
 }
 
 async function seedTdeeFixture() {
@@ -537,6 +544,7 @@ describe('fitness api', () => {
       protein: 100,
       sugar: 80,
       caffeine: 280,
+      steps: 7000,
       calorieDeficit: 250
     })
   })
@@ -557,6 +565,7 @@ describe('fitness api', () => {
       protein: 120,
       sugar: 80,
       caffeine: 280,
+      steps: 7000,
       calorieDeficit: 250
     })
 
@@ -580,6 +589,7 @@ describe('fitness api', () => {
       { metric: 'caffeine', amount: 280 },
       { metric: 'calorie_deficit', amount: 250 },
       { metric: 'protein', amount: 130 },
+      { metric: 'steps', amount: 7000 },
       { metric: 'sugar', amount: 80 }
     ])
 
@@ -632,6 +642,7 @@ describe('fitness api', () => {
         protein: 100,
         sugar: 80,
         caffeine: 280,
+        steps: 7000,
         calorieDeficit: 250
       })
 
@@ -1256,6 +1267,7 @@ describe('fitness api', () => {
     await addEntryAt('protein', entryDate, 99)
     await addEntryAt('sugar', entryDate, 50)
     await addEntryAt('caffeine', entryDate, 100)
+    await addEntryAt('steps', entryDate, 8000)
 
     const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
@@ -1275,6 +1287,27 @@ describe('fitness api', () => {
     await addEntryAt('protein', entryDate, 120)
     await addEntryAt('sugar', entryDate, 81)
     await addEntryAt('caffeine', entryDate, 100)
+    await addEntryAt('steps', entryDate, 8000)
+
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      dailyGoalStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.dailyGoalStreak).toBe(0)
+  })
+
+  it('resets the daily goal streak when steps miss their minimum', async () => {
+    await clearTrackingData()
+    const entryDate = new Date('2026-03-16T17:00:00.000Z')
+    await addEntryAt('calories', entryDate, 1500)
+    await addEntryAt('protein', entryDate, 120)
+    await addEntryAt('sugar', entryDate, 50)
+    await addEntryAt('caffeine', entryDate, 100)
+    await addEntryAt('steps', entryDate, 6999)
 
     const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
@@ -1606,6 +1639,49 @@ describe('fitness api', () => {
     expect(response.status).toBe(200)
   })
 
+  it('creates, lists, and deletes step entries for the current local day', async () => {
+    await db.insert(stepsEntries).values({
+      amount: 2500,
+      createdAt: new Date('2026-03-17T04:59:59.000Z')
+    })
+
+    const createResponse = await app.request('/api/steps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 4200 })
+    })
+
+    expect(createResponse.status).toBe(201)
+
+    const listResponse = await app.request('/api/steps')
+    const entries = (await listResponse.json()) as Array<{
+      id: number
+      amount: number
+      createdAt: string
+    }>
+
+    expect(listResponse.status).toBe(200)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      amount: 4200,
+      createdAt: '2026-03-17 12:00:00'
+    })
+
+    const deleteResponse = await app.request(`/api/steps/${entries[0].id}`, {
+      method: 'DELETE'
+    })
+
+    expect(deleteResponse.status).toBe(200)
+  })
+
+  it('treats deleting a missing step entry as a success', async () => {
+    const response = await app.request('/api/steps/999999', {
+      method: 'DELETE'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
   it('sends a caffeine alert only on the first over-limit post for the day', async () => {
     await clearTrackingData()
     await db.insert(caffeineEntries).values({
@@ -1754,6 +1830,7 @@ describe('fitness api', () => {
     await db.delete(proteinEntries)
     await db.delete(sugarEntries)
     await db.delete(caffeineEntries)
+    await db.delete(stepsEntries)
     await db.delete(weightEntries)
 
     const response = await app.request('/api/tdee')

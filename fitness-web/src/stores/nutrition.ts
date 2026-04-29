@@ -13,7 +13,8 @@ function createMetricEntryMap(): MetricEntryMap {
   return {
     protein: [],
     sugar: [],
-    caffeine: []
+    caffeine: [],
+    steps: []
   }
 }
 
@@ -21,7 +22,8 @@ function createMetricFlagMap(): MetricFlagMap {
   return {
     protein: false,
     sugar: false,
-    caffeine: false
+    caffeine: false,
+    steps: false
   }
 }
 
@@ -33,13 +35,15 @@ export const useNutritionStore = defineStore('nutrition', () => {
   const goalsByMetric = reactive<NutritionGoals>({
     protein: 100,
     sugar: 80,
-    caffeine: 280
+    caffeine: 280,
+    steps: 7000
   })
 
   const totalsByMetric = computed<Record<NutritionMetric, number>>(() => ({
     protein: entriesByMetric.protein.reduce((sum, entry) => sum + entry.amount, 0),
     sugar: entriesByMetric.sugar.reduce((sum, entry) => sum + entry.amount, 0),
-    caffeine: entriesByMetric.caffeine.reduce((sum, entry) => sum + entry.amount, 0)
+    caffeine: entriesByMetric.caffeine.reduce((sum, entry) => sum + entry.amount, 0),
+    steps: entriesByMetric.steps.reduce((sum, entry) => sum + entry.amount, 0)
   }))
 
   const currentMetric = computed<NutritionMetric>(() =>
@@ -113,7 +117,8 @@ export const useNutritionStore = defineStore('nutrition', () => {
       Object.assign(goalsByMetric, {
         protein: goalsResult.data.protein,
         sugar: goalsResult.data.sugar,
-        caffeine: goalsResult.data.caffeine
+        caffeine: goalsResult.data.caffeine,
+        steps: goalsResult.data.steps
       })
     } else {
       console.error('Failed to refresh nutrition goals:', goalsResult.error)

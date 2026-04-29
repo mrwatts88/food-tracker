@@ -24,6 +24,12 @@ export const caffeineEntries = pgTable('caffeine_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const stepsEntries = pgTable('steps_entries', {
+  id: serial('id').primaryKey(),
+  amount: integer('amount').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const entryDividers = pgTable('entry_dividers', {
   id: serial('id').primaryKey(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
@@ -40,10 +46,12 @@ export const dailyGoalDays = pgTable('daily_goal_days', {
   proteinTotal: integer('protein_total').notNull().default(0),
   sugarTotal: integer('sugar_total').notNull().default(0),
   caffeineTotal: integer('caffeine_total').notNull().default(0),
+  stepsTotal: integer('steps_total').notNull().default(0),
   calorieGoal: integer('calorie_goal').notNull(),
   proteinGoal: integer('protein_goal').notNull(),
   sugarGoal: integer('sugar_goal').notNull(),
   caffeineGoal: integer('caffeine_goal').notNull(),
+  stepsGoal: integer('steps_goal').notNull(),
   successful: boolean('successful'),
   evaluatedAt: timestamp('evaluated_at', { withTimezone: true })
 })
@@ -65,6 +73,7 @@ export const schema = {
   proteinEntries,
   sugarEntries,
   caffeineEntries,
+  stepsEntries,
   entryDividers,
   nutritionGoals,
   dailyGoalDays,

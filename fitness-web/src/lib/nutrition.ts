@@ -1,23 +1,26 @@
 import type { EntryMetric, NutritionMetric } from '@/types'
 
-export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine']
+export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine', 'steps']
 
 export const nutritionMetricLabels: Record<NutritionMetric, string> = {
   protein: 'Protein',
   sugar: 'Sugar',
-  caffeine: 'Caffeine'
+  caffeine: 'Caffeine',
+  steps: 'Steps'
 }
 
 export const nutritionMetricUnits: Record<NutritionMetric, string> = {
   protein: 'g',
   sugar: 'g',
-  caffeine: 'mg'
+  caffeine: 'mg',
+  steps: 'steps'
 }
 
 export const nutritionMetricColorVars: Record<NutritionMetric, string> = {
   protein: 'var(--color-protein-primary)',
   sugar: 'var(--color-sugar-primary)',
-  caffeine: 'var(--color-caffeine-primary)'
+  caffeine: 'var(--color-caffeine-primary)',
+  steps: 'var(--color-steps-primary)'
 }
 
 export function isNutritionMetric(metric: EntryMetric): metric is NutritionMetric {

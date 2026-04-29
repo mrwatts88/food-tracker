@@ -8,19 +8,21 @@ import {
   dailyGoalDays,
   dailyGoalStreakState,
   proteinEntries,
+  stepsEntries,
   sugarEntries
 } from '../db/schema'
 import { getGoalConfig } from './goals'
 import { getCurrentDateTime, getTodayBounds } from './time'
 import { calculateTdeeStats } from './tdee'
 
-export type DailyGoalMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine'
+export type DailyGoalMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'steps'
 
 type DailyGoals = {
   calorieGoal: number
   proteinGoal: number
   sugarGoal: number
   caffeineGoal: number
+  stepsGoal: number
 }
 
 type DailyTotals = {
@@ -28,6 +30,7 @@ type DailyTotals = {
   proteinTotal: number
   sugarTotal: number
   caffeineTotal: number
+  stepsTotal: number
 }
 
 const STREAK_STATE_ID = 1
@@ -56,13 +59,15 @@ export async function recordDailyGoalEntry(options: {
         calorieTotal: existing.calorieTotal,
         proteinTotal: existing.proteinTotal,
         sugarTotal: existing.sugarTotal,
-        caffeineTotal: existing.caffeineTotal
+        caffeineTotal: existing.caffeineTotal,
+        stepsTotal: existing.stepsTotal
       }
     : {
         calorieTotal: 0,
         proteinTotal: 0,
         sugarTotal: 0,
-        caffeineTotal: 0
+        caffeineTotal: 0,
+        stepsTotal: 0
       }
 
   totals[`${metric}Total`] += amount
@@ -92,7 +97,8 @@ export async function refreshUnevaluatedDailyGoalDay(options: {
           calorieGoal: existing.calorieGoal,
           proteinGoal: existing.proteinGoal,
           sugarGoal: existing.sugarGoal,
-          caffeineGoal: existing.caffeineGoal
+          caffeineGoal: existing.caffeineGoal,
+          stepsGoal: existing.stepsGoal
         })
       : getDailyGoals(db, createdAt, timezone, fallbackGoal)
   ])
@@ -168,7 +174,8 @@ async function getDailyGoals(
     calorieGoal: derivedCalorieGoal > 0 ? derivedCalorieGoal : fallbackGoal,
     proteinGoal: goalConfig.protein,
     sugarGoal: goalConfig.sugar,
-    caffeineGoal: goalConfig.caffeine
+    caffeineGoal: goalConfig.caffeine,
+    stepsGoal: goalConfig.steps
   }
 }
 
@@ -209,24 +216,31 @@ async function upsertDailyGoalDay(
 }
 
 async function getTotalsForBounds(db: Database, startUtc: Date, endUtc: Date): Promise<DailyTotals> {
-  const [calories, protein, sugar, caffeine] = await Promise.all([
+  const [calories, protein, sugar, caffeine, steps] = await Promise.all([
     getEntryTotal(db, calorieEntries, startUtc, endUtc),
     getEntryTotal(db, proteinEntries, startUtc, endUtc),
     getEntryTotal(db, sugarEntries, startUtc, endUtc),
-    getEntryTotal(db, caffeineEntries, startUtc, endUtc)
+    getEntryTotal(db, caffeineEntries, startUtc, endUtc),
+    getEntryTotal(db, stepsEntries, startUtc, endUtc)
   ])
 
   return {
     calorieTotal: calories,
     proteinTotal: protein,
     sugarTotal: sugar,
-    caffeineTotal: caffeine
+    caffeineTotal: caffeine,
+    stepsTotal: steps
   }
 }
 
 async function getEntryTotal(
   db: Database,
-  table: typeof calorieEntries | typeof proteinEntries | typeof sugarEntries | typeof caffeineEntries,
+  table:
+    | typeof calorieEntries
+    | typeof proteinEntries
+    | typeof sugarEntries
+    | typeof caffeineEntries
+    | typeof stepsEntries,
   startUtc: Date,
   endUtc: Date
 ) {
@@ -243,7 +257,8 @@ function isSuccessfulDay(day: NonNullable<Awaited<ReturnType<typeof getDailyGoal
     day.calorieTotal <= day.calorieGoal &&
     day.proteinTotal >= day.proteinGoal &&
     day.sugarTotal <= day.sugarGoal &&
-    day.caffeineTotal <= day.caffeineGoal
+    day.caffeineTotal <= day.caffeineGoal &&
+    day.stepsTotal >= day.stepsGoal
   )
 }
 

@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const currentInput = ref('')
 const hasInput = computed(() => currentInput.value.length > 0)
+const maxInputLength = computed(() => (props.mode === 'steps' ? 5 : 4))
 
 const displayValue = computed(() => {
   if (props.mode === 'weight' && currentInput.value.length > 0) {
@@ -35,7 +36,7 @@ const displayValue = computed(() => {
 })
 
 function handleNumberClick(num: number) {
-  if (currentInput.value.length < 4) {
+  if (currentInput.value.length < maxInputLength.value) {
     currentInput.value += num.toString()
   }
 }

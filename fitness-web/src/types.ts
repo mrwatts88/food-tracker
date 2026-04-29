@@ -1,8 +1,8 @@
 export type Mode = 'calorie' | 'weight' | 'stats'
-export type NutritionMetric = 'protein' | 'sugar' | 'caffeine'
+export type NutritionMetric = 'protein' | 'sugar' | 'caffeine' | 'steps'
 export type TrackMetric = 'calorie' | NutritionMetric
 export type EntryMetric = TrackMetric | 'weight'
-export type VoiceMetric = 'calorie' | NutritionMetric
+export type VoiceMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine'
 export type VoiceSessionState = 'idle' | 'listening' | 'processing' | 'preview'
 
 export interface CalorieEntry {

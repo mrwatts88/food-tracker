@@ -2,14 +2,20 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { nutritionMetrics, isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
+import { isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
 import { calorieApi, nutritionApi, voiceApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { EntryMetric, TrackMetric, VoiceParsePreview, VoiceSessionState } from '@/types'
+import type {
+  EntryMetric,
+  TrackMetric,
+  VoiceMetric,
+  VoiceParsePreview,
+  VoiceSessionState,
+} from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
 import VoiceEntryButton from './VoiceEntryButton.vue'
@@ -22,6 +28,7 @@ const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const LISTENING_TIMEOUT_SECONDS = 20
+const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = ['protein', 'sugar', 'caffeine']
 
 const voiceState = ref<VoiceSessionState>('idle')
 const recordingSecondsRemaining = ref(LISTENING_TIMEOUT_SECONDS)
@@ -366,7 +373,7 @@ async function confirmVoicePreview() {
     requests.push(calorieApi.addEntry(preview.totals.calorie))
   }
 
-  for (const metric of nutritionMetrics) {
+  for (const metric of voiceEntryMetrics) {
     if (preview.totals[metric] > 0) {
       requests.push(nutritionApi.addEntry(metric, preview.totals[metric]))
     }

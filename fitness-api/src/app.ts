@@ -11,6 +11,7 @@ import {
   entryDividers,
   nutritionGoals,
   proteinEntries,
+  stepsEntries,
   sugarEntries,
   weightEntries
 } from './db/schema'
@@ -62,9 +63,9 @@ const configValueSchema = z.object({
   amount: z.number().int()
 })
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine'
+type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'steps'
 type NutritionAlertMetric = 'sugar' | 'caffeine'
-type NutritionEntryTable = typeof proteinEntries | typeof sugarEntries | typeof caffeineEntries
+type NutritionEntryTable = typeof proteinEntries | typeof sugarEntries | typeof caffeineEntries | typeof stepsEntries
 type AmountEntryTable = typeof calorieEntries | NutritionEntryTable
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -310,6 +311,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'protein', proteinEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'sugar', sugarEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'caffeine', caffeineEntries)
+  registerNutritionEntryRoutes(app, dependencies, config, notifier, 'steps', stepsEntries)
 
   app.get('/nutrition/goals', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
@@ -568,7 +570,7 @@ function jsonError(message: string, status: number) {
 }
 
 function getNutritionAlertMetric(path: NutritionRoutePath): NutritionAlertMetric | null {
-  if (path === 'protein') {
+  if (path === 'protein' || path === 'steps') {
     return null
   }
 
@@ -610,6 +612,7 @@ async function getConfigRows(db: Database) {
     ['protein', DEFAULT_GOAL_CONFIG.protein],
     ['sugar', DEFAULT_GOAL_CONFIG.sugar],
     ['caffeine', DEFAULT_GOAL_CONFIG.caffeine],
+    ['steps', DEFAULT_GOAL_CONFIG.steps],
     ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit]
   ] as const
 
@@ -630,6 +633,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     proteinResult,
     sugarResult,
     caffeineResult,
+    stepsResult,
     dividerResult
   ] = await Promise.all([
     db
@@ -649,6 +653,10 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
       .from(caffeineEntries)
       .where(and(gte(caffeineEntries.createdAt, today.startUtc), lte(caffeineEntries.createdAt, now))),
     db
+      .select({ createdAt: max(stepsEntries.createdAt) })
+      .from(stepsEntries)
+      .where(and(gte(stepsEntries.createdAt, today.startUtc), lte(stepsEntries.createdAt, now))),
+    db
       .select({ createdAt: max(entryDividers.createdAt) })
       .from(entryDividers)
       .where(and(gte(entryDividers.createdAt, today.startUtc), lte(entryDividers.createdAt, now)))
@@ -659,6 +667,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     proteinResult[0]?.createdAt,
     sugarResult[0]?.createdAt,
     caffeineResult[0]?.createdAt,
+    stepsResult[0]?.createdAt,
     dividerResult[0]?.createdAt
   ].reduce<Date | null>((latest, current) => {
     if (current === null || current === undefined) {

@@ -39,7 +39,8 @@ export const entryDividerApi = {
 const nutritionEndpoints: Record<NutritionMetric, string> = {
   protein: '/protein',
   sugar: '/sugar',
-  caffeine: '/caffeine'
+  caffeine: '/caffeine',
+  steps: '/steps'
 }
 
 export const nutritionApi = {
