@@ -18,6 +18,7 @@ type DashboardCard = {
   label: string
   value: string
   detail: string
+  valueSuffix?: string
   supportingLines?: Array<{
     key: string
     value: string
@@ -230,7 +231,8 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     label: 'Calories',
     unit: 'kCals',
     value: formatNumber(availableCalories.value),
-    detail: 'Available',
+    detail: '',
+    valueSuffix: 'Available',
     selectMetric: 'calorie',
     historyMetric: 'calorie',
     accentColor: 'var(--color-calorie-primary)',
@@ -258,7 +260,7 @@ const nutritionCards = computed<DashboardCard[]>(() => [
       nutritionStore.totalsByMetric[metric],
       nutritionStore.goalsByMetric[metric] ?? null,
     ),
-    detail: 'Total today',
+    detail: '',
     selectMetric: metric,
     historyMetric: metric,
     lockMetric: metric,
@@ -490,30 +492,9 @@ function saveNutritionLocks() {
         >
           <div v-if="!card.hideHeader" class="track-card-header">
             <div class="track-card-header-copy">
-              <div class="track-card-title-line">
-                <div class="track-card-label">{{ card.label }}</div>
-                <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
-              </div>
+              <div class="track-card-label">{{ card.label }}</div>
             </div>
             <div class="track-card-actions">
-              <button
-                v-if="card.historyMetric"
-                class="icon-button"
-                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
-                :aria-label="`Open ${card.label.toLowerCase()} history`"
-                :title="`Open ${card.label.toLowerCase()} history`"
-                @click.stop="openHistory(card.historyMetric)"
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-                  />
-                </svg>
-              </button>
               <button
                 v-if="card.lockMetric"
                 class="icon-button lock-button"
@@ -554,6 +535,24 @@ function saveNutritionLocks() {
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12v9H6z"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="card.historyMetric"
+                class="icon-button"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-label="`Open ${card.label.toLowerCase()} history`"
+                :title="`Open ${card.label.toLowerCase()} history`"
+                @click.stop="openHistory(card.historyMetric)"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
                   />
                 </svg>
               </button>
@@ -658,30 +657,9 @@ function saveNutritionLocks() {
         >
           <div v-if="!card.hideHeader" class="track-card-header">
             <div class="track-card-header-copy">
-              <div class="track-card-title-line">
-                <div class="track-card-label">{{ card.label }}</div>
-                <div v-if="card.unit" class="track-card-unit">{{ card.unit }}</div>
-              </div>
+              <div class="track-card-label">{{ card.label }}</div>
             </div>
             <div class="track-card-actions">
-              <button
-                v-if="card.historyMetric"
-                class="icon-button"
-                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
-                :aria-label="`Open ${card.label.toLowerCase()} history`"
-                :title="`Open ${card.label.toLowerCase()} history`"
-                @click.stop="openHistory(card.historyMetric)"
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-                  />
-                </svg>
-              </button>
               <button
                 v-if="card.lockMetric"
                 class="icon-button lock-button"
@@ -722,6 +700,24 @@ function saveNutritionLocks() {
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12v9H6z"
+                  />
+                </svg>
+              </button>
+              <button
+                v-if="card.historyMetric"
+                class="icon-button"
+                :style="{ color: card.accentColor ?? 'var(--color-calorie-primary)' }"
+                :aria-label="`Open ${card.label.toLowerCase()} history`"
+                :title="`Open ${card.label.toLowerCase()} history`"
+                @click.stop="openHistory(card.historyMetric)"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
                   />
                 </svg>
               </button>
@@ -766,8 +762,11 @@ function saveNutritionLocks() {
                   :style="{ color: card.accentColor ?? 'var(--color-text)' }"
                 >
                   {{ card.value }}
+                  <span v-if="card.valueSuffix" class="track-card-value-suffix">
+                    {{ card.valueSuffix }}
+                  </span>
                 </div>
-                <div class="track-card-detail">{{ card.detail }}</div>
+                <div v-if="card.detail" class="track-card-detail">{{ card.detail }}</div>
               </div>
             </template>
             <div v-if="card.warning" class="track-card-detail track-card-detail--warning">
@@ -816,7 +815,7 @@ function saveNutritionLocks() {
   position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(92px, 0.72fr) repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -891,26 +890,6 @@ function saveNutritionLocks() {
   min-width: 0;
 }
 
-.track-card-title-line {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.track-card-unit {
-  display: inline-flex;
-  flex: 0 0 auto;
-  width: fit-content;
-  padding: 3px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-text-secondary);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
 .track-card-body {
   position: relative;
   z-index: 2;
@@ -961,6 +940,14 @@ function saveNutritionLocks() {
 
 .track-card-value--submitting {
   opacity: 0.45;
+}
+
+.track-card-value-suffix {
+  margin-left: 6px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: baseline;
 }
 
 .track-card-supporting {
@@ -1044,7 +1031,7 @@ function saveNutritionLocks() {
   position: relative;
   z-index: 5;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 4px;
 }
 
