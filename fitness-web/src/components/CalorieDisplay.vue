@@ -37,7 +37,7 @@ type DashboardCard = {
   loading?: boolean
   submitting?: boolean
   warning?: string | null
-  lockMetric?: NutritionMetric
+  lockMetric?: TrackMetric
   locked?: boolean
 }
 
@@ -56,7 +56,7 @@ const appStore = useAppStore()
 const nowTick = ref(Date.now())
 const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
-const lockedNutritionMetrics = ref<Set<NutritionMetric>>(new Set())
+const lockedNutritionMetrics = ref<Set<TrackMetric>>(new Set())
 const submissionStartTotals = ref<Record<NutritionMetric, number | null>>({
   protein: null,
   sugar: null,
@@ -235,6 +235,8 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     valueSuffix: 'Available',
     selectMetric: 'calorie',
     historyMetric: 'calorie',
+    lockMetric: 'calorie',
+    locked: lockedNutritionMetrics.value.has('calorie'),
     accentColor: 'var(--color-calorie-primary)',
     hero: false,
     loading: calorieStore.loading && !calorieStore.submittingEntry,
@@ -249,6 +251,7 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     accentColor: 'var(--color-calorie-primary)',
     hideHeader: true,
     prominentSupporting: true,
+    locked: lockedNutritionMetrics.value.has('calorie'),
     loading: calorieStore.loading && !calorieStore.submittingEntry,
     submitting: calorieStore.submittingEntry,
   },
@@ -366,7 +369,7 @@ function openHistory(metric?: EntryMetric) {
   appStore.openDrawer(metric)
 }
 
-function toggleNutritionLock(metric: NutritionMetric) {
+function toggleNutritionLock(metric: TrackMetric) {
   const nextLockedMetrics = new Set(lockedNutritionMetrics.value)
 
   if (nextLockedMetrics.has(metric)) {
@@ -455,8 +458,9 @@ function loadNutritionLocks() {
     }
 
     lockedNutritionMetrics.value = new Set(
-      parsedMetrics.filter((metric): metric is NutritionMetric =>
-        nutritionMetrics.includes(metric as NutritionMetric),
+      parsedMetrics.filter(
+        (metric): metric is TrackMetric =>
+          metric === 'calorie' || nutritionMetrics.includes(metric as NutritionMetric),
       ),
     )
   } catch {
@@ -911,10 +915,10 @@ function saveNutritionLocks() {
 
 .track-card-label {
   min-width: 0;
-  font-size: 16px;
+  font-size: 14px;
   color: var(--color-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1060,7 +1064,7 @@ function saveNutritionLocks() {
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: all 0.2s ease;
-  padding: 5px;
+  padding: 4px;
   background: var(--color-surface);
   display: flex;
   align-items: center;
@@ -1068,8 +1072,8 @@ function saveNutritionLocks() {
 }
 
 .icon-button svg {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
 }
 
 .icon-button:active {
@@ -1106,12 +1110,12 @@ function saveNutritionLocks() {
   }
 
   .icon-button {
-    padding: 5px;
+    padding: 4px;
   }
 
   .icon-button svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 
   .track-card-value {
