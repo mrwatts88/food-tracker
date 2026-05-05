@@ -7,6 +7,7 @@ import {
   nutritionMetrics,
   nutritionMetricUnits,
 } from '@/lib/nutrition'
+import { useTrackLocks } from '@/lib/trackLocks'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
@@ -52,11 +53,11 @@ const calorieStore = useCalorieStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const appStore = useAppStore()
+const { lockedTrackMetrics, toggleTrackLock, lockTrackMetric } = useTrackLocks()
 
 const nowTick = ref(Date.now())
 const boundaryRefreshTarget = ref<string | null>(null)
 const refreshingBoundary = ref(false)
-const lockedNutritionMetrics = ref<Set<TrackMetric>>(new Set())
 const submissionStartTotals = ref<Record<NutritionMetric, number | null>>({
   protein: null,
   sugar: null,
@@ -64,10 +65,6 @@ const submissionStartTotals = ref<Record<NutritionMetric, number | null>>({
   steps: null,
 })
 let intervalId: number | null = null
-
-const nutritionLockStorageKey = computed(
-  () => `nutrition-locks:${formatLocalDate(new Date(nowTick.value))}`,
-)
 
 const isWeightMode = computed(() => props.activeMetric === 'weight')
 
@@ -236,7 +233,7 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     selectMetric: 'calorie',
     historyMetric: 'calorie',
     lockMetric: 'calorie',
-    locked: lockedNutritionMetrics.value.has('calorie'),
+    locked: lockedTrackMetrics.value.has('calorie'),
     accentColor: 'var(--color-calorie-primary)',
     hero: false,
     loading: calorieStore.loading && !calorieStore.submittingEntry,
@@ -251,7 +248,7 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     accentColor: 'var(--color-calorie-primary)',
     hideHeader: true,
     prominentSupporting: true,
-    locked: lockedNutritionMetrics.value.has('calorie'),
+    locked: lockedTrackMetrics.value.has('calorie'),
     loading: calorieStore.loading && !calorieStore.submittingEntry,
     submitting: calorieStore.submittingEntry,
   },
@@ -267,7 +264,7 @@ const nutritionCards = computed<DashboardCard[]>(() => [
     selectMetric: metric,
     historyMetric: metric,
     lockMetric: metric,
-    locked: lockedNutritionMetrics.value.has(metric),
+    locked: lockedTrackMetrics.value.has(metric),
     accentColor: nutritionMetricColorVars[metric],
     loading: nutritionStore.loadingByMetric[metric] && !nutritionStore.submittingByMetric[metric],
     submitting: nutritionStore.submittingByMetric[metric],
@@ -301,16 +298,10 @@ watch(
 )
 
 onMounted(() => {
-  loadNutritionLocks()
-
   intervalId = window.setInterval(() => {
     nowTick.value = Date.now()
     maybeRefreshUnlockStatus()
   }, 1000)
-})
-
-watch(nutritionLockStorageKey, () => {
-  loadNutritionLocks()
 })
 
 for (const metric of nutritionMetrics) {
@@ -370,27 +361,11 @@ function openHistory(metric?: EntryMetric) {
 }
 
 function toggleNutritionLock(metric: TrackMetric) {
-  const nextLockedMetrics = new Set(lockedNutritionMetrics.value)
-
-  if (nextLockedMetrics.has(metric)) {
-    nextLockedMetrics.delete(metric)
-  } else {
-    nextLockedMetrics.add(metric)
-  }
-
-  lockedNutritionMetrics.value = nextLockedMetrics
-  saveNutritionLocks()
+  toggleTrackLock(metric)
 }
 
 function lockNutritionMetric(metric: NutritionMetric) {
-  if (lockedNutritionMetrics.value.has(metric)) {
-    return
-  }
-
-  const nextLockedMetrics = new Set(lockedNutritionMetrics.value)
-  nextLockedMetrics.add(metric)
-  lockedNutritionMetrics.value = nextLockedMetrics
-  saveNutritionLocks()
+  lockTrackMetric(metric)
 }
 
 function maybeAutoLockNutritionMetric(metric: NutritionMetric) {
@@ -433,47 +408,6 @@ function formatProgressValue(current: number, goal: number | null) {
   return `${formatNumber(current)} / ${goalValue}`
 }
 
-function formatLocalDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
-function loadNutritionLocks() {
-  const storedMetrics = window.localStorage.getItem(nutritionLockStorageKey.value)
-
-  if (!storedMetrics) {
-    lockedNutritionMetrics.value = new Set()
-    return
-  }
-
-  try {
-    const parsedMetrics = JSON.parse(storedMetrics)
-
-    if (!Array.isArray(parsedMetrics)) {
-      lockedNutritionMetrics.value = new Set()
-      return
-    }
-
-    lockedNutritionMetrics.value = new Set(
-      parsedMetrics.filter(
-        (metric): metric is TrackMetric =>
-          metric === 'calorie' || nutritionMetrics.includes(metric as NutritionMetric),
-      ),
-    )
-  } catch {
-    lockedNutritionMetrics.value = new Set()
-  }
-}
-
-function saveNutritionLocks() {
-  window.localStorage.setItem(
-    nutritionLockStorageKey.value,
-    JSON.stringify([...lockedNutritionMetrics.value]),
-  )
-}
 </script>
 
 <template>

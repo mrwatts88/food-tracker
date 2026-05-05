@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
+import { useTrackLocks } from '@/lib/trackLocks'
 import { calorieApi, nutritionApi, voiceApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
@@ -27,6 +28,7 @@ const calorieStore = useCalorieStore()
 const entryDividerStore = useEntryDividerStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
+const { isTrackLocked } = useTrackLocks()
 const LISTENING_TIMEOUT_SECONDS = 20
 const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = ['protein', 'sugar', 'caffeine']
 
@@ -73,6 +75,9 @@ const voiceSupported = computed(
     Boolean(navigator.mediaDevices?.getUserMedia),
 )
 const showTrackActions = computed(() => appStore.mode === 'calorie')
+const activeMetricLocked = computed(
+  () => appStore.activeMetric !== 'weight' && isTrackLocked(appStore.activeMetric),
+)
 
 const streakSummary = computed(() => {
   const status = calorieStore.unlockStatus
@@ -102,6 +107,10 @@ const keyboardSubmitting = computed(() => {
 })
 
 async function handleSubmit(amount: number) {
+  if (activeMetricLocked.value) {
+    return
+  }
+
   if (appStore.activeMetric === 'weight') {
     await weightStore.addEntry(amount)
     return
@@ -368,12 +377,12 @@ async function confirmVoicePreview() {
   const preview = voicePreview.value
   const requests: Array<Promise<unknown>> = []
 
-  if (preview.totals.calorie > 0) {
+  if (preview.totals.calorie > 0 && !isTrackLocked('calorie')) {
     requests.push(calorieApi.addEntry(preview.totals.calorie))
   }
 
   for (const metric of voiceEntryMetrics) {
-    if (preview.totals[metric] > 0) {
+    if (preview.totals[metric] > 0 && !isTrackLocked(metric)) {
       requests.push(nutritionApi.addEntry(metric, preview.totals[metric]))
     }
   }
@@ -487,6 +496,7 @@ onBeforeUnmount(() => {
         :mode="appStore.activeMetric"
         :accent-color="keyboardAccentColor"
         :submitting="keyboardSubmitting"
+        :disabled="activeMetricLocked"
         @insert-divider="handleInsertDivider"
         @submit="handleSubmit"
       />

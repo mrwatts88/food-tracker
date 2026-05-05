@@ -7,11 +7,13 @@ interface Props {
   mode: EntryMetric
   accentColor?: string | null
   submitting?: boolean
+  disabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   accentColor: null,
-  submitting: false
+  submitting: false,
+  disabled: false
 })
 const emit = defineEmits<{
   'insert-divider': []
@@ -60,7 +62,7 @@ function handleClearInput() {
 }
 
 function handleSubmit() {
-  if (currentInput.value.length === 0 || props.submitting) return
+  if (currentInput.value.length === 0 || props.submitting || props.disabled) return
 
   let value: number
   if (props.mode === 'weight') {
@@ -143,7 +145,7 @@ function handleKeyDown(event: KeyboardEvent) {
       <button
         class="key-button key-submit"
         :style="{ background: primaryColor }"
-        :disabled="submitting"
+        :disabled="submitting || disabled"
         @click="handleSubmit"
       >
         <span v-if="submitting" class="loading-spinner"></span>
