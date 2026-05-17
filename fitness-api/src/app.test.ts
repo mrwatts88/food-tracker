@@ -12,6 +12,7 @@ import {
   dailyGoalDays,
   dailyGoalStreakState,
   entryDividers,
+  lifts,
   nutritionGoals,
   proteinEntries,
   stepsEntries,
@@ -768,6 +769,126 @@ describe('fitness api', () => {
 
     expect(afterResponse.status).toBe(200)
     expect(afterBody).toMatchObject(beforeBody)
+  })
+
+  it('creates and lists seeded lifts in display order', async () => {
+    const response = await app.request('/api/lifts')
+    const body = (await response.json()) as Array<{
+      slug: string
+      name: string
+      description: string
+      set1Weight: number
+      set2Weight: number
+      set3Weight: number
+      sortOrder: number
+    }>
+
+    expect(response.status).toBe(200)
+    expect(body).toHaveLength(9)
+    expect(body.map(lift => lift.slug)).toEqual([
+      'triceps-extension',
+      'bicep-curl',
+      'delt-raise',
+      'shoulder-press',
+      'chest-press',
+      'lat-pull-down',
+      'seated-leg-curl',
+      'leg-extension',
+      'seated-leg-press'
+    ])
+    expect(body[0]).toMatchObject({
+      name: 'Triceps extension',
+      description: '3 sets / 12 reps / 1 minute rest / move up if complete',
+      set1Weight: 30,
+      set2Weight: 30,
+      set3Weight: 30,
+      sortOrder: 1
+    })
+  })
+
+  it('updates one lift without changing other lifts', async () => {
+    const updateResponse = await app.request('/api/lifts/bicep-curl', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        set1Weight: 30,
+        set2Weight: 25,
+        set3Weight: 20
+      })
+    })
+    const updated = (await updateResponse.json()) as {
+      slug: string
+      set1Weight: number
+      set2Weight: number
+      set3Weight: number
+    }
+
+    expect(updateResponse.status).toBe(200)
+    expect(updated).toMatchObject({
+      slug: 'bicep-curl',
+      set1Weight: 30,
+      set2Weight: 25,
+      set3Weight: 20
+    })
+
+    const listResponse = await app.request('/api/lifts')
+    const lifts = (await listResponse.json()) as Array<{
+      slug: string
+      set1Weight: number
+      set2Weight: number
+      set3Weight: number
+    }>
+
+    expect(lifts.find(lift => lift.slug === 'bicep-curl')).toMatchObject({
+      set1Weight: 30,
+      set2Weight: 25,
+      set3Weight: 20
+    })
+    expect(lifts.find(lift => lift.slug === 'triceps-extension')).toMatchObject({
+      set1Weight: 30,
+      set2Weight: 30,
+      set3Weight: 30
+    })
+  })
+
+  it('rejects invalid lift weights', async () => {
+    const negativeResponse = await app.request('/api/lifts/chest-press', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        set1Weight: -5,
+        set2Weight: 60,
+        set3Weight: 60
+      })
+    })
+
+    expect(negativeResponse.status).toBe(400)
+
+    const decimalResponse = await app.request('/api/lifts/chest-press', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        set1Weight: 60,
+        set2Weight: 62.5,
+        set3Weight: 60
+      })
+    })
+
+    expect(decimalResponse.status).toBe(400)
+  })
+
+  it('returns 404 when updating an unknown lift', async () => {
+    const response = await app.request('/api/lifts/unknown-lift', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        set1Weight: 10,
+        set2Weight: 10,
+        set3Weight: 10
+      })
+    })
+
+    expect(response.status).toBe(404)
   })
 
   it('auto-inserts a divider when the latest tracked item across metrics is more than 10 minutes earlier', async () => {

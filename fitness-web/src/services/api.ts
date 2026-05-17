@@ -4,6 +4,8 @@ import type {
   ConfigValue,
   EntryDivider,
   GoalConfigResponse,
+  Lift,
+  LiftUpdate,
   NutritionEntry,
   NutritionMetric,
   TDEEResponse,
@@ -72,6 +74,12 @@ export const weightApi = {
   getEntries: () => api.get<WeightEntry[]>('/weight'),
   addEntry: (amount: number) => api.post<WeightEntry>('/weight', { amount }),
   deleteEntry: (date: string) => api.delete(`/weight/${date}`)
+}
+
+export const liftApi = {
+  getLifts: () => api.get<Lift[]>('/lifts'),
+  updateLift: (slug: string, input: LiftUpdate) =>
+    api.patch<Lift>(`/lifts/${encodeURIComponent(slug)}`, input)
 }
 
 // TDEE API

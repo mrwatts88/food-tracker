@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, max } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, max } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import {
   caffeineEntries,
   calorieEntries,
   entryDividers,
+  lifts,
   nutritionGoals,
   proteinEntries,
   stepsEntries,
@@ -61,6 +62,12 @@ const weightEntrySchema = z.object({
 const configMetricSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9_]+$/)
 const configValueSchema = z.object({
   amount: z.number().int()
+})
+const liftSlugSchema = z.string().trim().min(1).max(96).regex(/^[a-z0-9-]+$/)
+const liftUpdateSchema = z.object({
+  set1Weight: z.number().int().nonnegative(),
+  set2Weight: z.number().int().nonnegative(),
+  set3Weight: z.number().int().nonnegative()
 })
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'steps'
@@ -323,6 +330,36 @@ export function createApp(dependencies: AppDependencies = {}) {
     return c.json(await getConfigRows(runtime.db))
   })
 
+  app.get('/lifts', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const rows = await runtime.db.select().from(lifts).orderBy(asc(lifts.sortOrder))
+
+    return c.json(rows.map(liftToResponse))
+  })
+
+  app.patch('/lifts/:slug', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const slug = liftSlugSchema.parse(c.req.param('slug'))
+    const input = liftUpdateSchema.parse(await c.req.json())
+
+    const [row] = await runtime.db
+      .update(lifts)
+      .set({
+        set1Weight: input.set1Weight,
+        set2Weight: input.set2Weight,
+        set3Weight: input.set3Weight,
+        updatedAt: runtime.now()
+      })
+      .where(eq(lifts.slug, slug))
+      .returning()
+
+    if (!row) {
+      throw new ApiError(404, 'Lift not found')
+    }
+
+    return c.json(liftToResponse(row))
+  })
+
   app.put('/config/:metric', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     const metric = configMetricSchema.parse(c.req.param('metric'))
@@ -558,6 +595,19 @@ function assertFound<T>(value: T | undefined, message: string) {
   }
 
   return value
+}
+
+function liftToResponse(row: typeof lifts.$inferSelect) {
+  return {
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    set1Weight: row.set1Weight,
+    set2Weight: row.set2Weight,
+    set3Weight: row.set3Weight,
+    sortOrder: row.sortOrder,
+    updatedAt: row.updatedAt.toISOString()
+  }
 }
 
 function jsonError(message: string, status: number) {

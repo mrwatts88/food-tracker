@@ -12,6 +12,7 @@
   --color-caffeine-primary: #14b8a6;
   --color-steps-primary: #a3e635;
   --color-weight-primary: #f59e0b;
+  --color-lifts-primary: #ef4444;
   --color-background: #1f2937;
   --color-surface: #374151;
   --color-text: #f9fafb;

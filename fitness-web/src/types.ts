@@ -1,4 +1,4 @@
-export type Mode = 'calorie' | 'weight' | 'stats'
+export type Mode = 'calorie' | 'weight' | 'lifts' | 'stats'
 export type NutritionMetric = 'protein' | 'sugar' | 'caffeine' | 'steps'
 export type TrackMetric = 'calorie' | NutritionMetric
 export type EntryMetric = TrackMetric | 'weight'
@@ -15,6 +15,19 @@ export interface WeightEntry {
   amount: number
   createdAt: string // YYYY-MM-DD
 }
+
+export interface Lift {
+  slug: string
+  name: string
+  description: string
+  set1Weight: number
+  set2Weight: number
+  set3Weight: number
+  sortOrder: number
+  updatedAt: string
+}
+
+export type LiftUpdate = Pick<Lift, 'set1Weight' | 'set2Weight' | 'set3Weight'>
 
 export interface NutritionEntry {
   id: number

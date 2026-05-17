@@ -41,6 +41,13 @@ function handleModeChange(mode: Mode) {
       Weight
     </button>
     <button
+      :class="['toggle-button', { active: appStore.mode === 'lifts' }]"
+      :style="{ '--active-color': 'var(--color-lifts-primary)' }"
+      @click="handleModeChange('lifts')"
+    >
+      Lifts
+    </button>
+    <button
       :class="['toggle-button', { active: appStore.mode === 'stats' }]"
       :style="{ '--active-color': 'var(--color-calorie-primary)' }"
       @click="handleModeChange('stats')"

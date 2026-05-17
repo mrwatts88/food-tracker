@@ -68,6 +68,17 @@ export const weightEntries = pgTable('weight_entries', {
   amount: doublePrecision('amount').notNull()
 })
 
+export const lifts = pgTable('lifts', {
+  slug: text('slug').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  set1Weight: integer('set_1_weight').notNull(),
+  set2Weight: integer('set_2_weight').notNull(),
+  set3Weight: integer('set_3_weight').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const schema = {
   calorieEntries,
   proteinEntries,
@@ -78,5 +89,6 @@ export const schema = {
   nutritionGoals,
   dailyGoalDays,
   dailyGoalStreakState,
-  weightEntries
+  weightEntries,
+  lifts
 }
