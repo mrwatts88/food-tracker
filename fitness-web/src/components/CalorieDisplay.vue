@@ -47,66 +47,56 @@ function formatNumber(value: number) {
 
 <template>
   <div class="calorie-display">
-    <!-- Weight mode keeps the existing hero card -->
-    <div v-if="isWeightMode" class="track-grid track-grid--single">
+    <!-- Weight mode: same focused summary layout, one centered number -->
+    <div
+      v-if="isWeightMode"
+      class="summary-card"
+      :style="{ '--summary-accent': 'var(--color-weight-primary)' }"
+    >
       <div
-        class="track-card track-card--primary"
-        :style="{ '--card-accent': 'var(--color-weight-primary)' }"
+        v-if="weightLoading"
+        class="loading-indicator loading-indicator--center"
+        role="status"
+        aria-label="Loading weight"
       >
-        <div class="track-card-header">
-          <div class="track-card-header-copy">
-            <div class="track-card-label">Weight</div>
-          </div>
-          <div class="track-card-actions">
-            <button
-              class="icon-button"
-              :style="{ color: 'var(--color-weight-primary)' }"
-              aria-label="Open weight history"
-              title="Open weight history"
-              @click="openHistory('weight')"
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="track-card-body track-card-body--hero">
-          <div
-            v-if="weightLoading"
-            class="loading-indicator"
-            role="status"
-            aria-label="Loading weight"
-          >
-            <span
-              class="loading-spinner"
-              :style="{ '--spinner-color': 'var(--color-weight-primary)' }"
-            ></span>
-          </div>
-          <template v-else>
-            <div class="track-card-value-stack track-card-value-stack--bottom">
-              <div
-                class="track-card-value track-card-value--hero"
-                :class="{ 'track-card-value--submitting': weightStore.submittingEntry }"
-                :style="{ color: 'var(--color-weight-primary)' }"
-              >
-                {{ weightValue }}
-              </div>
-              <div class="track-card-detail">{{ weightDetail }}</div>
-            </div>
-          </template>
-        </div>
+        <span
+          class="loading-spinner"
+          :style="{ '--spinner-color': 'var(--color-weight-primary)' }"
+        ></span>
       </div>
+      <template v-else>
+        <button
+          class="icon-button summary-card-history"
+          aria-label="Open weight history"
+          title="Open weight history"
+          @click="openHistory('weight')"
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 7.5v5l4 1M4.252 5v4H8M5.07 8a8 8 0 1 1-.818 6"
+            />
+          </svg>
+        </button>
+        <div
+          class="summary-hero"
+          :class="{ 'summary-hero--submitting': weightStore.submittingEntry }"
+        >
+          <div class="summary-hero-value">{{ weightValue }}</div>
+          <div class="summary-hero-label">{{ weightDetail }}</div>
+        </div>
+      </template>
     </div>
 
     <!-- Calorie mode: one focused summary — eaten, remaining, allowed -->
-    <div v-else class="calorie-summary">
+    <div
+      v-else
+      class="summary-card"
+      :style="{ '--summary-accent': 'var(--color-calorie-primary)' }"
+    >
       <div
         v-if="calorieLoading"
         class="loading-indicator loading-indicator--center"
@@ -120,7 +110,7 @@ function formatNumber(value: number) {
       </div>
       <template v-else>
         <button
-          class="icon-button calorie-summary-history"
+          class="icon-button summary-card-history"
           aria-label="Open calorie history"
           title="Open calorie history"
           @click="openHistory('calorie')"
@@ -136,27 +126,24 @@ function formatNumber(value: number) {
           </svg>
         </button>
         <div
-          class="calorie-summary-hero"
-          :class="{ 'calorie-summary-hero--submitting': calorieStore.submittingEntry }"
+          class="summary-hero"
+          :class="{ 'summary-hero--submitting': calorieStore.submittingEntry }"
         >
-          <div
-            class="calorie-summary-hero-value"
-            :class="{ 'calorie-summary-hero-value--over': isOverdrawn }"
-          >
+          <div class="summary-hero-value" :class="{ 'summary-hero-value--over': isOverdrawn }">
             {{ formatNumber(caloriesRemaining) }}
           </div>
-          <div class="calorie-summary-hero-label">
+          <div class="summary-hero-label">
             {{ isOverdrawn ? 'Calories over' : 'Calories remaining' }}
           </div>
         </div>
-        <div class="calorie-summary-splits">
-          <div class="calorie-summary-split">
-            <div class="calorie-summary-split-value">{{ formatNumber(caloriesEaten) }}</div>
-            <div class="calorie-summary-split-label">Eaten</div>
+        <div class="summary-splits">
+          <div class="summary-split">
+            <div class="summary-split-value">{{ formatNumber(caloriesEaten) }}</div>
+            <div class="summary-split-label">Eaten</div>
           </div>
-          <div class="calorie-summary-split">
-            <div class="calorie-summary-split-value">{{ formatNumber(caloriesAllowed) }}</div>
-            <div class="calorie-summary-split-label">Allowed</div>
+          <div class="summary-split">
+            <div class="summary-split-value">{{ formatNumber(caloriesAllowed) }}</div>
+            <div class="summary-split-label">Allowed</div>
           </div>
         </div>
       </template>
@@ -182,136 +169,8 @@ function formatNumber(value: number) {
   }
 }
 
-/* Weight card grid */
-.track-grid {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  position: relative;
-  display: grid;
-  gap: 8px;
-}
-
-.track-grid--single {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.track-card {
-  position: relative;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 0;
-  padding: 10px;
-  border-radius: var(--border-radius);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-surface) 94%, white 6%),
-    var(--color-surface)
-  );
-  border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 20%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.track-card--primary {
-  border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--card-accent) 14%, transparent),
-    var(--color-surface)
-  );
-}
-
-.track-card-header {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.track-card-header-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.track-card-actions {
-  position: relative;
-  z-index: 5;
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
-}
-
-.track-card-body {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-}
-
-.track-card-body--hero {
-  align-items: flex-start;
-}
-
-.track-card-label {
-  min-width: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.track-card-value-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.track-card-value-stack--bottom {
-  margin-top: auto;
-}
-
-.track-card-value {
-  font-size: clamp(16px, 3.9vw, 23px);
-  font-weight: 700;
-  line-height: 1.1;
-  color: var(--color-text);
-  word-break: break-word;
-}
-
-.track-card-value--hero {
-  font-size: clamp(34px, 7.4vw, 52px);
-  line-height: 1;
-}
-
-.track-card-value--submitting {
-  opacity: 0.45;
-}
-
-.track-card-detail {
-  position: relative;
-  z-index: 2;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  line-height: 1.35;
-}
-
-/* Calorie summary */
-.calorie-summary {
+/* Focused summary card — shared by calorie and weight modes */
+.summary-card {
   position: relative;
   flex: 1;
   width: 100%;
@@ -323,23 +182,23 @@ function formatNumber(value: number) {
   gap: clamp(20px, 6vh, 44px);
   padding: 10px;
   border-radius: var(--border-radius);
-  border: 1px solid color-mix(in srgb, var(--color-calorie-primary) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--summary-accent) 40%, transparent);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-calorie-primary) 14%, transparent),
+    color-mix(in srgb, var(--summary-accent) 14%, transparent),
     var(--color-surface)
   );
 }
 
-.calorie-summary-history {
+.summary-card-history {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 5;
-  color: var(--color-calorie-primary);
+  color: var(--summary-accent);
 }
 
-.calorie-summary-hero {
+.summary-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -347,22 +206,22 @@ function formatNumber(value: number) {
   text-align: center;
 }
 
-.calorie-summary-hero--submitting {
+.summary-hero--submitting {
   opacity: 0.45;
 }
 
-.calorie-summary-hero-value {
+.summary-hero-value {
   font-size: clamp(64px, 22vw, 132px);
   font-weight: 800;
   line-height: 0.95;
-  color: var(--color-calorie-primary);
+  color: var(--summary-accent);
 }
 
-.calorie-summary-hero-value--over {
+.summary-hero-value--over {
   color: #fcd34d;
 }
 
-.calorie-summary-hero-label {
+.summary-hero-label {
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -370,27 +229,27 @@ function formatNumber(value: number) {
   color: var(--color-text-secondary);
 }
 
-.calorie-summary-splits {
+.summary-splits {
   display: flex;
   align-items: stretch;
   gap: clamp(24px, 10vw, 64px);
   text-align: center;
 }
 
-.calorie-summary-split {
+.summary-split {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.calorie-summary-split-value {
+.summary-split-value {
   font-size: clamp(28px, 8vw, 44px);
   font-weight: 700;
   line-height: 1;
   color: var(--color-text);
 }
 
-.calorie-summary-split-label {
+.summary-split-label {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -447,12 +306,8 @@ function formatNumber(value: number) {
     padding-bottom: var(--spacing-sm);
   }
 
-  .track-card {
+  .summary-card {
     padding: 9px;
-  }
-
-  .track-card-value--hero {
-    font-size: clamp(28px, 8vw, 42px);
   }
 }
 
