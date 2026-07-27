@@ -6,9 +6,13 @@
 //   fit ate a bagel and a coke→ LLM-estimated, logged across metrics
 //   fit -n <anything>         → dry run, show the estimate without logging
 //
+// Estimation runs through local headless Claude Code by default, falling back to the
+// API's OpenAI key. Force one with FIT_ESTIMATOR=claude|api.
+//
 // Defaults to production. Override with FIT_API_URL, or ~/.config/fit/config:
 //   echo 'FIT_API_URL=http://localhost:3000/api' > ~/.config/fit/config
 
+import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -79,6 +83,112 @@ async function logTotals(totals) {
   return logged
 }
 
+const ESTIMATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'warnings'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', ...METRICS],
+        properties: {
+          name: { type: 'string' },
+          ...Object.fromEntries(METRICS.map(metric => [metric, { type: 'integer' }]))
+        }
+      }
+    },
+    warnings: { type: 'array', items: { type: 'string' } }
+  }
+}
+
+const ESTIMATE_RULES =
+  'Extract nutrition tracking entries from the text below. Only populate a metric that is explicitly named; never infer calories from a protein, sugar, or caffeine statement. For food and drink items, estimate all four metrics from general nutrition knowledge. Units: calorie in kcal, protein and sugar in grams, caffeine in milligrams. Use 0 for anything you are not estimating. If something is too ambiguous to log, omit it and add a warning. Answer immediately from nutrition knowledge; do not deliberate. Warn only when genuinely ambiguous, and keep each warning under 12 words.'
+
+// Local Claude Code, headless. Needs no OpenAI key — the estimating happens on this machine.
+function estimateWithClaude(text) {
+  return new Promise(resolve => {
+    const child = spawn(
+      'claude',
+      [
+        '-p',
+        '--model', 'haiku',
+        '--output-format', 'json',
+        '--json-schema', JSON.stringify(ESTIMATE_SCHEMA),
+        '--strict-mcp-config',
+        '--setting-sources', ''
+      ],
+      // Thinking is pure latency here — the estimate is recall, not reasoning.
+      { stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, MAX_THINKING_TOKENS: '0' } }
+    )
+
+    let stdout = ''
+    child.stdout.on('data', chunk => (stdout += chunk))
+    child.on('error', () => resolve(null))
+    child.on('close', () => {
+      try {
+        const envelope = JSON.parse(stdout)
+
+        if (envelope.is_error) {
+          return resolve(null)
+        }
+
+        const parsed = JSON.parse(envelope.result)
+
+        resolve({
+          items: parsed.items.map(item => ({
+            label: item.name,
+            totals: Object.fromEntries(METRICS.map(metric => [metric, item[metric] ?? 0]))
+          })),
+          warnings: parsed.warnings ?? []
+        })
+      } catch {
+        resolve(null)
+      }
+    })
+
+    child.stdin.end(`${ESTIMATE_RULES}\n\nText: ${text}`)
+  })
+}
+
+// Server-side fallback: same extraction, but via the deployment's OpenAI key.
+async function estimateWithApi(text) {
+  const parsed = await request('/text/parse', { text })
+
+  return {
+    items: parsed.items.map(item => ({
+      label: item.name ?? item.rawText,
+      totals: item.estimated.reduce((acc, e) => ({ ...acc, [e.metric]: e.amount }), { ...emptyTotals })
+    })),
+    warnings: parsed.warnings
+  }
+}
+
+async function estimate(text) {
+  const backend = process.env.FIT_ESTIMATOR ?? 'auto'
+  const result = backend === 'api' ? null : await estimateWithClaude(text)
+
+  if (result) {
+    return { ...result, totals: sumTotals(result.items) }
+  }
+
+  if (backend === 'claude') {
+    fail('claude estimation failed (is the `claude` CLI installed?)')
+  }
+
+  const fallback = await estimateWithApi(text)
+  return { ...fallback, totals: sumTotals(fallback.items) }
+}
+
+function sumTotals(items) {
+  return items.reduce(
+    (acc, item) => Object.fromEntries(METRICS.map(metric => [metric, acc[metric] + item.totals[metric]])),
+    { ...emptyTotals }
+  )
+}
+
 // Fast path: `fit 30` or `fit protein 40` / `fit 40 protein` — no LLM, no latency.
 function parseDirect(words) {
   if (words.length === 1 && /^\d+$/.test(words[0])) {
@@ -123,11 +233,10 @@ if (direct) {
   process.exit(0)
 }
 
-const parsed = await request('/text/parse', { text: words.join(' ') })
+const parsed = await estimate(words.join(' '))
 
 for (const item of parsed.items) {
-  const label = item.name ?? item.rawText
-  console.log(`  ${label}: ${describe(item.estimated.reduce((acc, e) => ({ ...acc, [e.metric]: e.amount }), { ...emptyTotals })) || 'nothing'}`)
+  console.log(`  ${item.label}: ${describe(item.totals) || 'nothing'}`)
 }
 
 for (const warning of parsed.warnings) {

@@ -90,9 +90,14 @@ ln -sf "$PWD/scripts/fit.mjs" ~/.local/bin/fit
 ```bash
 fit 30                      # 30 calories — direct POST, no LLM
 fit protein 40              # also: sugar, caffeine
-fit ate a bagel and a coffee  # POST /text/parse, then logs each estimated metric
+fit ate a bagel and a coffee  # estimated, then logs each metric (~3s)
 fit -n a bagel              # preview without logging
 ```
+
+Estimation runs through local headless Claude Code (`claude -p --json-schema`), so it
+needs no OpenAI key. If the `claude` CLI is missing or fails it falls back to
+`POST /text/parse`, which uses the deployment's `OPENAI_API_KEY`. Force one backend with
+`FIT_ESTIMATOR=claude` or `FIT_ESTIMATOR=api`.
 
 It targets production by default. To point it elsewhere, set `FIT_API_URL` in the
 environment or in `~/.config/fit/config` (env wins):
