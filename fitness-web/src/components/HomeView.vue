@@ -11,6 +11,7 @@ import ModeToggle from '@/components/ModeToggle.vue'
 import CalorieMode from '@/components/CalorieMode.vue'
 import EntryDrawer from '@/components/EntryDrawer.vue'
 import LiftsMode from '@/components/LiftsMode.vue'
+import PullToRefresh from '@/components/PullToRefresh.vue'
 import StatsMode from '@/components/StatsMode.vue'
 
 const appStore = useAppStore()
@@ -20,7 +21,7 @@ const liftStore = useLiftStore()
 const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 
-onMounted(async () => {
+async function refreshAll() {
   await Promise.all([
     calorieStore.refreshData(),
     entryDividerStore.fetchEntries(),
@@ -28,6 +29,10 @@ onMounted(async () => {
     nutritionStore.refreshData(),
     weightStore.fetchEntries()
   ])
+}
+
+onMounted(async () => {
+  await refreshAll()
 
   if (!weightStore.todayWeight) {
     appStore.setMode('weight')
@@ -38,8 +43,10 @@ onMounted(async () => {
 
 <template>
   <ModeToggle />
-  <CalorieMode v-if="appStore.mode === 'calorie' || appStore.mode === 'weight'" />
-  <LiftsMode v-if="appStore.mode === 'lifts'" />
-  <StatsMode v-if="appStore.mode === 'stats'" />
+  <PullToRefresh :on-refresh="refreshAll">
+    <CalorieMode v-if="appStore.mode === 'calorie' || appStore.mode === 'weight'" />
+    <LiftsMode v-if="appStore.mode === 'lifts'" />
+    <StatsMode v-if="appStore.mode === 'stats'" />
+  </PullToRefresh>
   <EntryDrawer />
 </template>

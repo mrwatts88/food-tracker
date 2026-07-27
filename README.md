@@ -79,32 +79,32 @@ Local URLs:
 - API: `http://localhost:3000`
 - Frontend calls API at `/api`, proxied by Vite during local dev
 
-## Terminal Logging (`fit`)
+## Terminal Logging (`fitness`)
 
-`scripts/fit.mjs` logs entries from any terminal without opening the app. Install once:
+`scripts/fitness.mjs` logs entries from any terminal without opening the app. Install once:
 
 ```bash
-ln -sf "$PWD/scripts/fit.mjs" ~/.local/bin/fit
+ln -sf "$PWD/scripts/fitness.mjs" ~/.local/bin/fitness
 ```
 
 ```bash
-fit 30                      # 30 calories — direct POST, no LLM
-fit protein 40              # also: sugar, caffeine
-fit ate a bagel and a coffee  # estimated, then logs each metric (~3s)
-fit -n a bagel              # preview without logging
+fitness 30                      # 30 calories — direct POST, no LLM
+fitness protein 40              # also: sugar, caffeine
+fitness ate a bagel and a coffee  # estimated, then logs each metric (~3s)
+fitness -n a bagel              # preview without logging
 ```
 
 Estimation runs through local headless Claude Code (`claude -p --json-schema`), so it
 needs no OpenAI key. If the `claude` CLI is missing or fails it falls back to
 `POST /text/parse`, which uses the deployment's `OPENAI_API_KEY`. Force one backend with
-`FIT_ESTIMATOR=claude` or `FIT_ESTIMATOR=api`.
+`FITNESS_ESTIMATOR=claude` or `FITNESS_ESTIMATOR=api`.
 
-It targets production by default. To point it elsewhere, set `FIT_API_URL` in the
-environment or in `~/.config/fit/config` (env wins):
+It targets production by default. To point it elsewhere, set `FITNESS_API_URL` in the
+environment or in `~/.config/fitness/config` (env wins):
 
 ```bash
-mkdir -p ~/.config/fit
-echo 'FIT_API_URL=http://localhost:3000/api' > ~/.config/fit/config
+mkdir -p ~/.config/fitness
+echo 'FITNESS_API_URL=http://localhost:3000/api' > ~/.config/fitness/config
 ```
 
 The `fitness-log` Claude Code skill (in `~/.claude/skills/`) wraps this so plain requests

@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// fit — log fitness entries from any terminal.
+// fitness — log fitness entries from any terminal.
 //
-//   fit 30                    → 30 calories
-//   fit protein 40            → 40g protein
-//   fit ate a bagel and a coke→ LLM-estimated, logged across metrics
-//   fit -n <anything>         → dry run, show the estimate without logging
+//   fitness 30                    → 30 calories
+//   fitness protein 40            → 40g protein
+//   fitness ate a bagel and a coke→ LLM-estimated, logged across metrics
+//   fitness -n <anything>         → dry run, show the estimate without logging
 //
 // Estimation runs through local headless Claude Code by default, falling back to the
-// API's OpenAI key. Force one with FIT_ESTIMATOR=claude|api.
+// API's OpenAI key. Force one with FITNESS_ESTIMATOR=claude|api.
 //
-// Defaults to production. Override with FIT_API_URL, or ~/.config/fit/config:
-//   echo 'FIT_API_URL=http://localhost:3000/api' > ~/.config/fit/config
+// Defaults to production. Override with FITNESS_API_URL, or ~/.config/fitness/config:
+//   echo 'FITNESS_API_URL=http://localhost:3000/api' > ~/.config/fitness/config
 
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -28,14 +28,14 @@ const FORMAT = {
 }
 
 function loadApiUrl() {
-  if (process.env.FIT_API_URL) {
-    return process.env.FIT_API_URL.replace(/\/$/, '')
+  if (process.env.FITNESS_API_URL) {
+    return process.env.FITNESS_API_URL.replace(/\/$/, '')
   }
 
   const configPath = join(homedir(), '.config', 'fit', 'config')
 
   try {
-    const match = readFileSync(configPath, 'utf8').match(/^\s*FIT_API_URL\s*=\s*(.+?)\s*$/m)
+    const match = readFileSync(configPath, 'utf8').match(/^\s*FITNESS_API_URL\s*=\s*(.+?)\s*$/m)
 
     if (match) {
       return match[1].replace(/^['"]|['"]$/g, '').replace(/\/$/, '')
@@ -167,7 +167,7 @@ async function estimateWithApi(text) {
 }
 
 async function estimate(text) {
-  const backend = process.env.FIT_ESTIMATOR ?? 'auto'
+  const backend = process.env.FITNESS_ESTIMATOR ?? 'auto'
   const result = backend === 'api' ? null : await estimateWithClaude(text)
 
   if (result) {
@@ -189,7 +189,7 @@ function sumTotals(items) {
   )
 }
 
-// Fast path: `fit 30` or `fit protein 40` / `fit 40 protein` — no LLM, no latency.
+// Fast path: `fitness 30` or `fitness protein 40` / `fitness 40 protein` — no LLM, no latency.
 function parseDirect(words) {
   if (words.length === 1 && /^\d+$/.test(words[0])) {
     return { calorie: Number(words[0]) }
@@ -213,7 +213,7 @@ const dryRun = args[0] === '-n' || args[0] === '--dry-run'
 const words = (dryRun ? args.slice(1) : args).filter(Boolean)
 
 if (words.length === 0) {
-  fail('usage: fit [-n] <amount | metric amount | plain english>')
+  fail('usage: fitness [-n] <amount | metric amount | plain english>')
 }
 
 const apiUrl = loadApiUrl()
