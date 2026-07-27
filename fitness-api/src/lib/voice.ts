@@ -31,6 +31,7 @@ export type VoiceParseResult = {
 
 export interface VoiceParser {
   parseAudio(file: File): Promise<VoiceParseResult>
+  parseText(text: string): Promise<VoiceParseResult>
 }
 
 type VoiceParserDependencies = {
@@ -86,55 +87,73 @@ export function createVoiceParser(
         }
       }
 
-      const response = await openai.responses.parse({
-        model: config.openAiParseModel,
-        input: [
-          {
-            role: 'system',
-            content:
-              'Extract nutrition tracking entries from the transcript. For direct metric statements, only populate the metric explicitly named. Never infer calories from protein, sugar, or caffeine statements. Only include calories when calories were explicitly spoken or when a food item is mentioned and you are estimating its nutrition. Food items may estimate calories, protein, sugar, and caffeine from general nutrition knowledge. Mixed utterances should preserve both explicit metrics and food-derived estimates. If something is unsupported or too ambiguous, omit it and add a warning. Amounts must be integers in these units: calorie in kcal, protein and sugar in grams, caffeine in milligrams.'
-          },
-          {
-            role: 'user',
-            content: `Transcript: ${transcript}`
-          }
-        ],
-        text: {
-          format: zodTextFormat(parsedVoiceResponseSchema, 'voice_parse_result')
-        }
-      })
+      return parseTranscript(transcript)
+    },
+    async parseText(text) {
+      const transcript = text.trim()
 
-      const parsed = response.output_parsed
-
-      if (!parsed) {
+      if (!transcript) {
         return {
-          transcript,
+          transcript: '',
           items: [],
           totals: createVoiceTotals(),
-          warnings: ['The transcript could not be parsed into nutrition entries.']
+          warnings: ['No text was provided.']
         }
       }
 
-      const items = parsed.items.map(item => ({
-        kind: item.kind,
-        rawText: item.rawText,
-        name: item.name ?? undefined,
-        quantityText: item.quantityText ?? null,
-        estimated: item.estimated.filter(estimate => estimate.amount > 0)
-      }))
-      const totals = sumVoiceTotals(items)
-      const warnings = [...parsed.warnings]
+      return parseTranscript(transcript)
+    }
+  }
 
-      if (items.length === 0 && warnings.length === 0) {
-        warnings.push('No nutrition entries were detected in the transcript.')
+  async function parseTranscript(transcript: string): Promise<VoiceParseResult> {
+    const response = await openai.responses.parse({
+      model: config.openAiParseModel,
+      input: [
+        {
+          role: 'system',
+          content:
+            'Extract nutrition tracking entries from the transcript. For direct metric statements, only populate the metric explicitly named. Never infer calories from protein, sugar, or caffeine statements. Only include calories when calories were explicitly spoken or when a food item is mentioned and you are estimating its nutrition. Food items may estimate calories, protein, sugar, and caffeine from general nutrition knowledge. Mixed utterances should preserve both explicit metrics and food-derived estimates. If something is unsupported or too ambiguous, omit it and add a warning. Amounts must be integers in these units: calorie in kcal, protein and sugar in grams, caffeine in milligrams.'
+        },
+        {
+          role: 'user',
+          content: `Transcript: ${transcript}`
+        }
+      ],
+      text: {
+        format: zodTextFormat(parsedVoiceResponseSchema, 'voice_parse_result')
       }
+    })
 
+    const parsed = response.output_parsed
+
+    if (!parsed) {
       return {
         transcript,
-        items,
-        totals,
-        warnings
+        items: [],
+        totals: createVoiceTotals(),
+        warnings: ['The transcript could not be parsed into nutrition entries.']
       }
+    }
+
+    const items = parsed.items.map(item => ({
+      kind: item.kind,
+      rawText: item.rawText,
+      name: item.name ?? undefined,
+      quantityText: item.quantityText ?? null,
+      estimated: item.estimated.filter(estimate => estimate.amount > 0)
+    }))
+    const totals = sumVoiceTotals(items)
+    const warnings = [...parsed.warnings]
+
+    if (items.length === 0 && warnings.length === 0) {
+      warnings.push('No nutrition entries were detected in the transcript.')
+    }
+
+    return {
+      transcript,
+      items,
+      totals,
+      warnings
     }
   }
 }

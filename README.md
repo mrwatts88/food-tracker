@@ -9,6 +9,8 @@ Calorie tracking app with:
 
 This repo is set up for one Vercel project. The frontend is deployed as static assets and the backend is exposed from `/api/*`.
 
+Production: <https://food-tracker-weld-six.vercel.app>
+
 ## Repo Layout
 
 ```text
@@ -76,6 +78,32 @@ Local URLs:
 - Frontend: `http://localhost:5173`
 - API: `http://localhost:3000`
 - Frontend calls API at `/api`, proxied by Vite during local dev
+
+## Terminal Logging (`fit`)
+
+`scripts/fit.mjs` logs entries from any terminal without opening the app. Install once:
+
+```bash
+ln -sf "$PWD/scripts/fit.mjs" ~/.local/bin/fit
+```
+
+```bash
+fit 30                      # 30 calories — direct POST, no LLM
+fit protein 40              # also: sugar, caffeine
+fit ate a bagel and a coffee  # POST /text/parse, then logs each estimated metric
+fit -n a bagel              # preview without logging
+```
+
+It targets production by default. To point it elsewhere, set `FIT_API_URL` in the
+environment or in `~/.config/fit/config` (env wins):
+
+```bash
+mkdir -p ~/.config/fit
+echo 'FIT_API_URL=http://localhost:3000/api' > ~/.config/fit/config
+```
+
+The `fitness-log` Claude Code skill (in `~/.claude/skills/`) wraps this so plain requests
+in a session log directly.
 
 ## Database Workflow
 

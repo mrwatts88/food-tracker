@@ -55,6 +55,10 @@ const calorieEntrySchema = z.object({
   amount: z.number().int().positive()
 })
 
+const textParseSchema = z.object({
+  text: z.string().trim().min(1).max(2000)
+})
+
 const weightEntrySchema = z.object({
   amount: z.number().positive()
 })
@@ -139,6 +143,16 @@ export function createApp(dependencies: AppDependencies = {}) {
     }
 
     const parsed = await voiceParser.parseAudio(file)
+    return c.json(parsed)
+  })
+
+  app.post('/text/parse', async c => {
+    if (voiceParser === null) {
+      return jsonError('Voice parsing is not configured', 503)
+    }
+
+    const input = textParseSchema.parse(await c.req.json())
+    const parsed = await voiceParser.parseText(input.text)
     return c.json(parsed)
   })
 

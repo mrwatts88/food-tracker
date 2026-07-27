@@ -468,6 +468,61 @@ describe('fitness api', () => {
     })
   })
 
+  it('parses typed text without transcribing audio', async () => {
+    const { parser, openai } = createOpenAiVoiceParserMock({
+      transcript: 'unused',
+      parsed: {
+        items: [
+          {
+            kind: 'food_item',
+            rawText: 'a bagel',
+            name: 'bagel',
+            quantityText: '1',
+            estimated: [
+              { metric: 'calorie', amount: 280 },
+              { metric: 'protein', amount: 10 }
+            ]
+          }
+        ]
+      }
+    })
+    const textApp = createTestApp({ voiceParser: parser })
+
+    const response = await textApp.request('/api/text/parse', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'a bagel' })
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      transcript: 'a bagel',
+      totals: {
+        calorie: 280,
+        protein: 10,
+        sugar: 0,
+        caffeine: 0
+      }
+    })
+    expect(openai.audio.transcriptions.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects text parse requests without usable text', async () => {
+    const { parser } = createOpenAiVoiceParserMock({
+      transcript: 'unused',
+      parsed: { items: [] }
+    })
+    const textApp = createTestApp({ voiceParser: parser })
+
+    const response = await textApp.request('/api/text/parse', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '   ' })
+    })
+
+    expect(response.status).toBe(400)
+  })
+
   it('returns warnings for empty or unsupported transcripts', async () => {
     const emptyMock = createOpenAiVoiceParserMock({
       transcript: '   ',
