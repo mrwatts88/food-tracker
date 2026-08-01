@@ -7,6 +7,7 @@ export type GoalConfig = {
   caffeine: number
   steps: number
   calorieDeficit: number
+  calorieTarget: number | null
 }
 
 export const DEFAULT_GOAL_CONFIG: GoalConfig = {
@@ -14,7 +15,8 @@ export const DEFAULT_GOAL_CONFIG: GoalConfig = {
   sugar: 80,
   caffeine: 280,
   steps: 7000,
-  calorieDeficit: 250
+  calorieDeficit: 250,
+  calorieTarget: null
 }
 
 export async function getGoalConfig(db: Database): Promise<GoalConfig> {
@@ -27,7 +29,8 @@ export async function getGoalConfig(db: Database): Promise<GoalConfig> {
       caffeine: rows.find(goal => goal.metric === 'caffeine')?.amount ?? DEFAULT_GOAL_CONFIG.caffeine,
       steps: rows.find(goal => goal.metric === 'steps')?.amount ?? DEFAULT_GOAL_CONFIG.steps,
       calorieDeficit:
-        rows.find(goal => goal.metric === 'calorie_deficit')?.amount ?? DEFAULT_GOAL_CONFIG.calorieDeficit
+        rows.find(goal => goal.metric === 'calorie_deficit')?.amount ?? DEFAULT_GOAL_CONFIG.calorieDeficit,
+      calorieTarget: toCalorieTarget(rows.find(goal => goal.metric === 'calorie_target')?.amount)
     }
   } catch (error) {
     if (isMissingNutritionGoalsTableError(error)) {
@@ -36,6 +39,24 @@ export async function getGoalConfig(db: Database): Promise<GoalConfig> {
 
     throw error
   }
+}
+
+export function resolveCalorieGoal(
+  calorieTarget: number | null,
+  tdee: number,
+  calorieDeficit: number,
+  fallbackGoal: number
+) {
+  if (calorieTarget !== null) {
+    return calorieTarget
+  }
+
+  const derivedGoal = Number.isFinite(tdee) ? Math.round(tdee - calorieDeficit) : 0
+  return derivedGoal > 0 ? derivedGoal : fallbackGoal
+}
+
+function toCalorieTarget(amount: number | undefined) {
+  return typeof amount === 'number' && Number.isInteger(amount) && amount > 0 ? amount : null
 }
 
 function isMissingNutritionGoalsTableError(error: unknown) {

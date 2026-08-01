@@ -20,8 +20,17 @@ const error = ref<string | null>(null)
 const values = ref<EditableConfigValue[]>([])
 
 const sortedValues = computed(() =>
-  [...values.value].sort((left, right) => left.metric.localeCompare(right.metric))
+  [...values.value].sort((left, right) => left.metric.localeCompare(right.metric)),
 )
+
+const labels: Record<string, string> = {
+  calorie_deficit: 'Calorie deficit',
+  calorie_target: 'Calorie target',
+  caffeine: 'Caffeine target',
+  protein: 'Protein target',
+  steps: 'Steps target',
+  sugar: 'Sugar limit',
+}
 
 async function fetchValues() {
   loading.value = true
@@ -29,10 +38,10 @@ async function fetchValues() {
 
   try {
     const response = await configApi.getValues()
-    values.value = response.data.map(value => ({
+    values.value = response.data.map((value) => ({
       ...value,
       draftAmount: String(value.amount),
-      saving: false
+      saving: false,
     }))
   } catch (fetchError) {
     console.error('Failed to fetch config values:', fetchError)
@@ -60,7 +69,7 @@ async function saveValue(value: EditableConfigValue) {
     value.draftAmount = String(response.data.amount)
     await Promise.all([
       calorieStore.refreshData({ setLoading: false }),
-      nutritionStore.refreshData({ setLoading: false })
+      nutritionStore.refreshData({ setLoading: false }),
     ])
   } catch (saveError) {
     console.error(`Failed to update ${value.metric}:`, saveError)
@@ -76,7 +85,13 @@ onMounted(fetchValues)
 <template>
   <section class="settings-view">
     <header class="settings-header">
-      <button class="icon-button" type="button" aria-label="Back" title="Back" @click="router.push('/')">
+      <button
+        class="icon-button"
+        type="button"
+        aria-label="Back"
+        title="Back"
+        @click="router.push('/')"
+      >
         <span aria-hidden="true">‹</span>
       </button>
       <h1>Settings</h1>
@@ -87,7 +102,10 @@ onMounted(fetchValues)
     <div v-if="loading" class="settings-loading">Loading settings...</div>
     <form v-else class="settings-list" @submit.prevent>
       <div v-for="value in sortedValues" :key="value.metric" class="settings-row">
-        <label :for="`config-${value.metric}`">{{ value.metric }}</label>
+        <label :for="`config-${value.metric}`">
+          {{ labels[value.metric] ?? value.metric }}
+          <small v-if="value.metric === 'calorie_target'">0 uses the weight-derived target</small>
+        </label>
         <input
           :id="`config-${value.metric}`"
           v-model="value.draftAmount"
@@ -193,6 +211,14 @@ onMounted(fetchValues)
   color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 700;
+}
+
+.settings-row label small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .settings-row input {

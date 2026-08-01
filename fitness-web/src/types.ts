@@ -58,6 +58,7 @@ export type NutritionGoals = Record<NutritionMetric, number>
 
 export interface GoalConfigResponse extends NutritionGoals {
   calorieDeficit: number
+  calorieTarget: number | null
 }
 
 export interface ConfigValue {
@@ -71,6 +72,7 @@ export interface TDEEResponse {
   eatenPerDay: number
   goalWeight: number
   calorieDeficit: number
+  calorieTarget: number | null
 }
 
 export interface UnlockStatus {

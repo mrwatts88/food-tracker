@@ -10,6 +10,7 @@ export const useCalorieStore = defineStore('calorie', () => {
   const eatenPerDay = ref<number | null>(null)
   const goalWeight = ref<number | null>(null)
   const calorieDeficit = ref<number>(250)
+  const calorieTarget = ref<number | null>(null)
   const unlockStatus = ref<UnlockStatus | null>(null)
   const unlockStatusReceivedAt = ref<number>(0)
   const loading = ref(false)
@@ -24,7 +25,7 @@ export const useCalorieStore = defineStore('calorie', () => {
   })
 
   const calorieGoal = computed(() => {
-    return tdee.value - calorieDeficit.value
+    return calorieTarget.value ?? tdee.value - calorieDeficit.value
   })
 
   const remainingCalories = computed(() => {
@@ -42,11 +43,19 @@ export const useCalorieStore = defineStore('calorie', () => {
         ? data.eatenPerDay
         : null
     goalWeight.value =
-      typeof data.goalWeight === 'number' && Number.isFinite(data.goalWeight) ? data.goalWeight : null
+      typeof data.goalWeight === 'number' && Number.isFinite(data.goalWeight)
+        ? data.goalWeight
+        : null
     calorieDeficit.value =
       typeof data.calorieDeficit === 'number' && Number.isFinite(data.calorieDeficit)
         ? data.calorieDeficit
         : 250
+    calorieTarget.value =
+      typeof data.calorieTarget === 'number' &&
+      Number.isFinite(data.calorieTarget) &&
+      data.calorieTarget > 0
+        ? data.calorieTarget
+        : null
   }
 
   function applyUnlockStatus(data: UnlockStatus) {
@@ -59,7 +68,7 @@ export const useCalorieStore = defineStore('calorie', () => {
       loading.value = true
       const [entriesResponse, unlockStatusResponse] = await Promise.all([
         calorieApi.getEntries(),
-        calorieApi.getUnlockStatus()
+        calorieApi.getUnlockStatus(),
       ])
       entries.value = entriesResponse.data
       applyUnlockStatus(unlockStatusResponse.data)
@@ -109,7 +118,7 @@ export const useCalorieStore = defineStore('calorie', () => {
       const [entriesResult, tdeeResult, unlockStatusResult] = await Promise.allSettled([
         calorieApi.getEntries(),
         tdeeApi.getTDEE(),
-        calorieApi.getUnlockStatus()
+        calorieApi.getUnlockStatus(),
       ])
 
       if (entriesResult.status === 'fulfilled') {
@@ -169,6 +178,7 @@ export const useCalorieStore = defineStore('calorie', () => {
     eatenPerDay,
     goalWeight,
     calorieDeficit,
+    calorieTarget,
     unlockStatus,
     unlockStatusReceivedAt,
     loading,
@@ -182,6 +192,6 @@ export const useCalorieStore = defineStore('calorie', () => {
     fetchUnlockStatus,
     refreshData,
     addEntry,
-    deleteEntry
+    deleteEntry,
   }
 })

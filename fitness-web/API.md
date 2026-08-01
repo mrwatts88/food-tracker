@@ -51,6 +51,8 @@ Shared response/request types live in:
 - `POST /api/caffeine`
 - `DELETE /api/caffeine/:id`
 - `GET /api/nutrition/goals`
+- `GET /api/config`
+- `PUT /api/config/:metric`
 - `GET /api/weight`
 - `POST /api/weight`
 - `DELETE /api/weight/:date`
@@ -79,3 +81,10 @@ Response fields:
 
 - `goalWeight`
 - `calorieDeficit`
+- `calorieTarget` (`null` when the target is weight-derived)
+
+## Manual Calorie Target
+
+Set `calorie_target` through `PUT /api/config/calorie_target` with an integer `amount`. A positive
+value overrides the weight-derived daily calorie target. Set it to `0` to return to automatic
+weight-based calculation.

@@ -228,6 +228,7 @@ export function createApp(dependencies: AppDependencies = {}) {
       schedule: runtime.config.calorieUnlockSchedule,
       fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
       calorieDeficit: goalConfig.calorieDeficit,
+      calorieTarget: goalConfig.calorieTarget,
       dailyGoalStreak
     })
 
@@ -251,6 +252,7 @@ export function createApp(dependencies: AppDependencies = {}) {
             schedule: runtime.config.calorieUnlockSchedule,
             fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
             calorieDeficit: goalConfig.calorieDeficit,
+            calorieTarget: goalConfig.calorieTarget,
             dailyGoalStreak
           })
 
@@ -456,7 +458,8 @@ export function createApp(dependencies: AppDependencies = {}) {
     return c.json({
       ...stats,
       goalWeight: runtime.config.goalWeight,
-      calorieDeficit: goalConfig.calorieDeficit
+      calorieDeficit: goalConfig.calorieDeficit,
+      calorieTarget: goalConfig.calorieTarget
     })
   })
 
@@ -677,7 +680,8 @@ async function getConfigRows(db: Database) {
     ['sugar', DEFAULT_GOAL_CONFIG.sugar],
     ['caffeine', DEFAULT_GOAL_CONFIG.caffeine],
     ['steps', DEFAULT_GOAL_CONFIG.steps],
-    ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit]
+    ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit],
+    ['calorie_target', DEFAULT_GOAL_CONFIG.calorieTarget ?? 0]
   ] as const
 
   for (const [metric, amount] of defaultRows) {

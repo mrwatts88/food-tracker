@@ -4,6 +4,7 @@ import { DateTime } from 'luxon'
 import type { Database } from '../db/client'
 import { calorieEntries } from '../db/schema'
 import { getCurrentDateTime, toZonedIso } from './time'
+import { resolveCalorieGoal } from './goals'
 import { calculateTdeeStats } from './tdee'
 
 const FRACTION_SUM_TOLERANCE = 0.000001
@@ -53,16 +54,17 @@ export async function calculateUnlockStatus(options: {
   schedule: string
   fallbackGoal: number
   calorieDeficit: number
+  calorieTarget: number | null
   dailyGoalStreak?: number
 }): Promise<UnlockStatus> {
-  const { db, now, timezone, schedule, fallbackGoal, calorieDeficit, dailyGoalStreak = 0 } = options
+  const { db, now, timezone, schedule, fallbackGoal, calorieDeficit, calorieTarget, dailyGoalStreak = 0 } = options
   const current = getCurrentDateTime(now, timezone)
   const todayKey = current.toISODate() ?? ''
   const scheduleSlots = parseUnlockSchedule(schedule)
 
   const [entries, dailyTargetCalories] = await Promise.all([
     loadCalorieEntries(db, timezone),
-    calculateDailyTargetCalories(db, current, timezone, fallbackGoal, calorieDeficit)
+    calculateDailyTargetCalories(db, current, timezone, fallbackGoal, calorieDeficit, calorieTarget)
   ])
 
   const todayEntries = entries.filter(entry => entry.localDate === todayKey)
@@ -227,10 +229,9 @@ async function calculateDailyTargetCalories(
   now: DateTime,
   timezone: string,
   fallbackGoal: number,
-  calorieDeficit: number
+  calorieDeficit: number,
+  calorieTarget: number | null
 ) {
   const tdeeStats = await calculateTdeeStats(db, now.toJSDate(), timezone)
-  const derivedGoal = Number.isFinite(tdeeStats.amount) ? tdeeStats.amount - calorieDeficit : 0
-
-  return derivedGoal > 0 ? derivedGoal : fallbackGoal
+  return resolveCalorieGoal(calorieTarget, tdeeStats.amount, calorieDeficit, fallbackGoal)
 }

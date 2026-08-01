@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import type OpenAI from 'openai'
 
@@ -601,7 +602,8 @@ describe('fitness api', () => {
       sugar: 80,
       caffeine: 280,
       steps: 7000,
-      calorieDeficit: 250
+      calorieDeficit: 250,
+      calorieTarget: null
     })
   })
 
@@ -622,7 +624,8 @@ describe('fitness api', () => {
       sugar: 80,
       caffeine: 280,
       steps: 7000,
-      calorieDeficit: 250
+      calorieDeficit: 250,
+      calorieTarget: null
     })
 
     await db
@@ -644,6 +647,7 @@ describe('fitness api', () => {
     await expect(response.json()).resolves.toEqual([
       { metric: 'caffeine', amount: 280 },
       { metric: 'calorie_deficit', amount: 250 },
+      { metric: 'calorie_target', amount: 0 },
       { metric: 'protein', amount: 130 },
       { metric: 'steps', amount: 7000 },
       { metric: 'sugar', amount: 80 }
@@ -699,7 +703,8 @@ describe('fitness api', () => {
         sugar: 80,
         caffeine: 280,
         steps: 7000,
-        calorieDeficit: 250
+        calorieDeficit: 250,
+        calorieTarget: null
       })
 
       const unlockResponse = await legacyApp.request('/api/calories/unlock-status')
@@ -1227,6 +1232,27 @@ describe('fitness api', () => {
         target: nutritionGoals.metric,
         set: { amount: 250 }
       })
+  })
+
+  it('uses a manual calorie target instead of the weight-derived goal', async () => {
+    await seedTdeeFixture()
+    await db.insert(nutritionGoals).values({ metric: 'calorie_target', amount: 2200 })
+
+    const unlockApp = createTestApp({
+      now: new Date('2026-03-17T17:30:00.000Z')
+    })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      dailyTargetCalories: 2200,
+      unlockedCalories: 1100,
+      nextScheduledUnlockCalories: 550,
+      nextEffectiveUnlockCalories: 550
+    })
+
+    await db.delete(nutritionGoals).where(eq(nutritionGoals.metric, 'calorie_target'))
   })
 
   it('reduces the next unlock when calories are overdrawn', async () => {
@@ -1997,7 +2023,8 @@ describe('fitness api', () => {
       lossIn2Weeks: 2,
       eatenPerDay: 2500,
       goalWeight: 189,
-      calorieDeficit: 250
+      calorieDeficit: 250,
+      calorieTarget: null
     })
   })
 
@@ -2017,7 +2044,8 @@ describe('fitness api', () => {
       lossIn2Weeks: 0,
       eatenPerDay: 0,
       goalWeight: 189,
-      calorieDeficit: 250
+      calorieDeficit: 250,
+      calorieTarget: null
     })
   })
 })

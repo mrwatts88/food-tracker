@@ -11,7 +11,7 @@ import {
   stepsEntries,
   sugarEntries
 } from '../db/schema'
-import { getGoalConfig } from './goals'
+import { getGoalConfig, resolveCalorieGoal } from './goals'
 import { getCurrentDateTime, getTodayBounds } from './time'
 import { calculateTdeeStats } from './tdee'
 
@@ -166,12 +166,13 @@ async function getDailyGoals(
     getGoalConfig(db),
     calculateTdeeStats(db, now, timezone)
   ])
-  const derivedCalorieGoal = Number.isFinite(tdeeStats.amount)
-    ? Math.round(tdeeStats.amount - goalConfig.calorieDeficit)
-    : 0
-
   return {
-    calorieGoal: derivedCalorieGoal > 0 ? derivedCalorieGoal : fallbackGoal,
+    calorieGoal: resolveCalorieGoal(
+      goalConfig.calorieTarget,
+      tdeeStats.amount,
+      goalConfig.calorieDeficit,
+      fallbackGoal
+    ),
     proteinGoal: goalConfig.protein,
     sugarGoal: goalConfig.sugar,
     caffeineGoal: goalConfig.caffeine,
