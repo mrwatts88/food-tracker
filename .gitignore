@@ -25,3 +25,5 @@ fitness-api/.env
 # Editors
 .vscode/
 .idea/
+.vercel
+.env*

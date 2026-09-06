@@ -90,7 +90,7 @@ export function createApp(dependencies: AppDependencies = {}) {
     app.use(
       '*',
       cors({
-        origin: config.corsOrigin,
+        origin: config.corsOrigin.split(',').map(origin => origin.trim()).filter(Boolean),
         allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
       })
     )
