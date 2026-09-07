@@ -93,12 +93,16 @@ export interface UnlockStatus {
 
 export type StreakGoalMetric = 'calorie' | 'protein' | 'sugar' | 'carbs'
 
+export type RetiredStreakGoalMetric = 'caffeine' | 'steps'
+
 export interface StreakMetricStatus {
-  metric: StreakGoalMetric
+  metric: StreakGoalMetric | RetiredStreakGoalMetric
   total: number
   goal: number
   kind: 'max' | 'min'
   met: boolean
+  // False for retired goals that no longer count; they only appear on past days they broke.
+  counted: boolean
 }
 
 export interface StreakDaySummary {

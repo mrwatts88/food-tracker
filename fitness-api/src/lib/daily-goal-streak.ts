@@ -19,14 +19,18 @@ import { calculateTdeeStats } from './tdee'
 export type DailyGoalMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'steps'
 
 export type StreakGoalMetric = 'calorie' | 'protein' | 'sugar' | 'carbs'
+// Goals that used to decide the streak. They only appear on past days they broke.
+export type RetiredStreakGoalMetric = 'caffeine' | 'steps'
 
 export type StreakMetricStatus = {
-  metric: StreakGoalMetric
+  metric: StreakGoalMetric | RetiredStreakGoalMetric
   total: number
   goal: number
   // 'max' goals must stay at or under the goal, 'min' goals must reach it.
   kind: 'max' | 'min'
   met: boolean
+  // False for retired goals that no longer count toward the streak.
+  counted: boolean
 }
 
 export type StreakDaySummary = {
@@ -152,19 +156,11 @@ export async function getDailyGoalStreakStatus(options: {
   const currentStreak = await syncDailyGoalStreak(db, now, timezone)
   const state = await getStreakState(db)
   const bounds = getTodayBounds(now, timezone)
-  const existing = await getDailyGoalDay(db, bounds.localDate)
+  // Today is judged against the goals as they stand now. The day row only pins
+  // goals once the day has been evaluated.
   const [totals, goals] = await Promise.all([
     getTotalsForBounds(db, bounds.startUtc, bounds.endUtc),
-    existing
-      ? Promise.resolve({
-          calorieGoal: existing.calorieGoal,
-          proteinGoal: existing.proteinGoal,
-          sugarGoal: existing.sugarGoal,
-          caffeineGoal: existing.caffeineGoal,
-          carbsGoal: existing.carbsGoal,
-          stepsGoal: existing.stepsGoal
-        })
-      : getDailyGoals(db, now, timezone, fallbackGoal)
+    getDailyGoals(db, now, timezone, fallbackGoal)
   ])
   const todayMetrics = buildMetricStatuses(totals, goals)
 
@@ -193,15 +189,45 @@ export async function getDailyGoalStreakStatus(options: {
         return { localDate, successful: false, evaluated: true, missing: true, metrics: [] }
       }
 
+      const successful = day.successful ?? isSuccessfulDay(day)
+      const metrics = buildMetricStatuses(day, day)
+
+      // A day that was judged under the old rules can be unsuccessful even
+      // though every current goal was met. Surface the retired goal that broke it.
+      if (!successful && metrics.every(metric => metric.met)) {
+        metrics.push(...buildRetiredMetricStatuses(day).filter(metric => !metric.met))
+      }
+
       return {
         localDate,
-        successful: day.successful ?? isSuccessfulDay(day),
+        successful,
         evaluated: day.evaluatedAt !== null,
         missing: false,
-        metrics: buildMetricStatuses(day, day)
+        metrics
       }
     })
   }
+}
+
+function buildRetiredMetricStatuses(day: DailyTotals & DailyGoals): StreakMetricStatus[] {
+  return [
+    {
+      metric: 'caffeine',
+      total: day.caffeineTotal,
+      goal: day.caffeineGoal,
+      kind: 'max',
+      met: day.caffeineTotal <= day.caffeineGoal,
+      counted: false
+    },
+    {
+      metric: 'steps',
+      total: day.stepsTotal,
+      goal: day.stepsGoal,
+      kind: 'min',
+      met: day.stepsTotal >= day.stepsGoal,
+      counted: false
+    }
+  ]
 }
 
 function buildMetricStatuses(totals: DailyTotals, goals: DailyGoals): StreakMetricStatus[] {
@@ -211,28 +237,32 @@ function buildMetricStatuses(totals: DailyTotals, goals: DailyGoals): StreakMetr
       total: totals.calorieTotal,
       goal: goals.calorieGoal,
       kind: 'max',
-      met: totals.calorieTotal <= goals.calorieGoal
+      met: totals.calorieTotal <= goals.calorieGoal,
+      counted: true
     },
     {
       metric: 'protein',
       total: totals.proteinTotal,
       goal: goals.proteinGoal,
       kind: 'min',
-      met: totals.proteinTotal >= goals.proteinGoal
+      met: totals.proteinTotal >= goals.proteinGoal,
+      counted: true
     },
     {
       metric: 'sugar',
       total: totals.sugarTotal,
       goal: goals.sugarGoal,
       kind: 'max',
-      met: totals.sugarTotal <= goals.sugarGoal
+      met: totals.sugarTotal <= goals.sugarGoal,
+      counted: true
     },
     {
       metric: 'carbs',
       total: totals.carbsTotal,
       goal: goals.carbsGoal,
       kind: 'max',
-      met: totals.carbsTotal <= goals.carbsGoal
+      met: totals.carbsTotal <= goals.carbsGoal,
+      counted: true
     }
   ]
 }

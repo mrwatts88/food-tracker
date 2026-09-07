@@ -3,10 +3,13 @@ import { computed } from 'vue'
 
 import type {
   DailyGoalStreakStatus,
+  RetiredStreakGoalMetric,
   StreakDaySummary,
   StreakGoalMetric,
   StreakMetricStatus,
 } from '@/types'
+
+type AnyStreakMetric = StreakGoalMetric | RetiredStreakGoalMetric
 
 interface Props {
   status: DailyGoalStreakStatus | null
@@ -23,25 +26,31 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const metricLabels: Record<StreakGoalMetric, string> = {
+const metricLabels: Record<AnyStreakMetric, string> = {
   calorie: 'Calories',
   protein: 'Protein',
   sugar: 'Sugar',
   carbs: 'Carbs',
+  caffeine: 'Caffeine',
+  steps: 'Steps',
 }
 
-const metricUnits: Record<StreakGoalMetric, string> = {
+const metricUnits: Record<AnyStreakMetric, string> = {
   calorie: 'cal',
   protein: 'g',
   sugar: 'g',
   carbs: 'g',
+  caffeine: 'mg',
+  steps: 'steps',
 }
 
-const metricColors: Record<StreakGoalMetric, string> = {
+const metricColors: Record<AnyStreakMetric, string> = {
   calorie: 'var(--color-calorie-primary)',
   protein: 'var(--color-protein-primary)',
   sugar: 'var(--color-sugar-primary)',
   carbs: 'var(--color-carbs-primary)',
+  caffeine: 'var(--color-caffeine-primary)',
+  steps: 'var(--color-steps-primary)',
 }
 
 const todayMisses = computed(
@@ -72,11 +81,13 @@ function describeMiss(metric: StreakMetricStatus) {
   const unit = metricUnits[metric.metric]
   const label = metricLabels[metric.metric].toLowerCase()
 
+  const suffix = metric.counted ? '' : ' (old rule)'
+
   if (metric.kind === 'min') {
-    return `${label} ${formatNumber(metric.goal - metric.total)} ${unit} short`
+    return `${label} ${formatNumber(metric.goal - metric.total)} ${unit} short${suffix}`
   }
 
-  return `${label} ${formatNumber(metric.total - metric.goal)} ${unit} over`
+  return `${label} ${formatNumber(metric.total - metric.goal)} ${unit} over${suffix}`
 }
 
 function describeGoal(metric: StreakMetricStatus) {
