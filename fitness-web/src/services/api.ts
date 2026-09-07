@@ -2,6 +2,7 @@ import axios from 'axios'
 import type {
   CalorieEntry,
   ConfigValue,
+  DailyGoalStreakStatus,
   EntryDivider,
   GoalConfigResponse,
   Lift,
@@ -11,18 +12,16 @@ import type {
   TDEEResponse,
   UnlockStatus,
   VoiceParsePreview,
-  WeightEntry
+  WeightEntry,
 } from '@/types'
 
-const apiBaseUrl = import.meta.env.DEV
-  ? import.meta.env.VITE_API_BASE_URL || '/api'
-  : '/api'
+const apiBaseUrl = import.meta.env.DEV ? import.meta.env.VITE_API_BASE_URL || '/api' : '/api'
 
 const api = axios.create({
   baseURL: apiBaseUrl,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 })
 
 // Calorie API
@@ -30,12 +29,12 @@ export const calorieApi = {
   getEntries: () => api.get<CalorieEntry[]>('/calories'),
   getUnlockStatus: () => api.get<UnlockStatus>('/calories/unlock-status'),
   addEntry: (amount: number) => api.post<CalorieEntry>('/calories', { amount }),
-  deleteEntry: (id: number) => api.delete(`/calories/${id}`)
+  deleteEntry: (id: number) => api.delete(`/calories/${id}`),
 }
 
 export const entryDividerApi = {
   getEntries: () => api.get<EntryDivider[]>('/entry-dividers'),
-  addDivider: () => api.post<EntryDivider>('/entry-dividers')
+  addDivider: () => api.post<EntryDivider>('/entry-dividers'),
 }
 
 const nutritionEndpoints: Record<NutritionMetric, string> = {
@@ -43,7 +42,7 @@ const nutritionEndpoints: Record<NutritionMetric, string> = {
   sugar: '/sugar',
   caffeine: '/caffeine',
   carbs: '/carbs',
-  steps: '/steps'
+  steps: '/steps',
 }
 
 export const nutritionApi = {
@@ -52,38 +51,42 @@ export const nutritionApi = {
   addEntry: (metric: NutritionMetric, amount: number) =>
     api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
   deleteEntry: (metric: NutritionMetric, id: number) =>
-    api.delete(`${nutritionEndpoints[metric]}/${id}`)
+    api.delete(`${nutritionEndpoints[metric]}/${id}`),
+}
+
+export const dailyGoalApi = {
+  getStreakStatus: () => api.get<DailyGoalStreakStatus>('/daily-goals/status'),
 }
 
 export const configApi = {
   getValues: () => api.get<ConfigValue[]>('/config'),
   updateValue: (metric: string, amount: number) =>
-    api.put<ConfigValue>(`/config/${encodeURIComponent(metric)}`, { amount })
+    api.put<ConfigValue>(`/config/${encodeURIComponent(metric)}`, { amount }),
 }
 
 export const voiceApi = {
   parseAudio: (formData: FormData) =>
     api.post<VoiceParsePreview>('/voice/parse', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
 }
 
 // Weight API
 export const weightApi = {
   getEntries: () => api.get<WeightEntry[]>('/weight'),
   addEntry: (amount: number) => api.post<WeightEntry>('/weight', { amount }),
-  deleteEntry: (date: string) => api.delete(`/weight/${date}`)
+  deleteEntry: (date: string) => api.delete(`/weight/${date}`),
 }
 
 export const liftApi = {
   getLifts: () => api.get<Lift[]>('/lifts'),
   updateLift: (slug: string, input: LiftUpdate) =>
-    api.patch<Lift>(`/lifts/${encodeURIComponent(slug)}`, input)
+    api.patch<Lift>(`/lifts/${encodeURIComponent(slug)}`, input),
 }
 
 // TDEE API
 export const tdeeApi = {
-  getTDEE: () => api.get<TDEEResponse>('/tdee')
+  getTDEE: () => api.get<TDEEResponse>('/tdee'),
 }

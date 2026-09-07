@@ -91,6 +91,31 @@ export interface UnlockStatus {
   serverNow: string
 }
 
+export type StreakGoalMetric = 'calorie' | 'protein' | 'sugar' | 'carbs'
+
+export interface StreakMetricStatus {
+  metric: StreakGoalMetric
+  total: number
+  goal: number
+  kind: 'max' | 'min'
+  met: boolean
+}
+
+export interface StreakDaySummary {
+  localDate: string // YYYY-MM-DD
+  successful: boolean
+  evaluated: boolean
+  missing: boolean
+  metrics: StreakMetricStatus[]
+}
+
+export interface DailyGoalStreakStatus {
+  currentStreak: number
+  lastBreakDate: string | null
+  today: StreakDaySummary
+  recentDays: StreakDaySummary[]
+}
+
 export interface VoiceEstimate {
   metric: VoiceMetric
   amount: number

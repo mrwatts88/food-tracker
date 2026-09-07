@@ -1,0 +1,3 @@
+ALTER TABLE daily_goal_days
+  ADD COLUMN IF NOT EXISTS carbs_total integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS carbs_goal integer NOT NULL DEFAULT 200;

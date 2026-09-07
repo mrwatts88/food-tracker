@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { nutritionApi } from '@/services/api'
 import { isNutritionMetric, nutritionMetrics } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
+import { useEntryDividerStore } from '@/stores/entryDivider'
 import type { NutritionEntry, NutritionGoals, NutritionMetric } from '@/types'
 
 type MetricEntryMap = Record<NutritionMetric, NutritionEntry[]>
@@ -31,6 +32,7 @@ function createMetricFlagMap(): MetricFlagMap {
 
 export const useNutritionStore = defineStore('nutrition', () => {
   const appStore = useAppStore()
+  const entryDividerStore = useEntryDividerStore()
   const entriesByMetric = reactive<MetricEntryMap>(createMetricEntryMap())
   const loadingByMetric = reactive<MetricFlagMap>(createMetricFlagMap())
   const submittingByMetric = reactive<MetricFlagMap>(createMetricFlagMap())
@@ -140,7 +142,11 @@ export const useNutritionStore = defineStore('nutrition', () => {
     try {
       submittingByMetric[metric] = true
       await nutritionApi.addEntry(metric, amount)
-      await refreshMetric(metric, { setLoading: false })
+      // The server may have inserted an auto divider ahead of this entry.
+      await Promise.all([
+        refreshMetric(metric, { setLoading: false }),
+        entryDividerStore.fetchEntries({ setLoading: false })
+      ])
     } catch (error) {
       console.error(`Failed to add ${metric} entry:`, error)
     } finally {

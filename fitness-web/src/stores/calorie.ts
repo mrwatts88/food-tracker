@@ -2,8 +2,10 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { CalorieEntry, TDEEResponse, UnlockStatus } from '@/types'
 import { calorieApi, tdeeApi } from '@/services/api'
+import { useEntryDividerStore } from '@/stores/entryDivider'
 
 export const useCalorieStore = defineStore('calorie', () => {
+  const entryDividerStore = useEntryDividerStore()
   const entries = ref<CalorieEntry[]>([])
   const tdee = ref<number>(0)
   const lossIn2Weeks = ref<number>(0)
@@ -151,7 +153,11 @@ export const useCalorieStore = defineStore('calorie', () => {
     try {
       submittingEntry.value = true
       await calorieApi.addEntry(amount)
-      await refreshData({ setLoading: false })
+      // The server may have inserted an auto divider ahead of this entry.
+      await Promise.all([
+        refreshData({ setLoading: false }),
+        entryDividerStore.fetchEntries({ setLoading: false })
+      ])
     } catch (error) {
       console.error('Failed to add calorie entry:', error)
     } finally {

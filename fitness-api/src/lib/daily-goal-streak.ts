@@ -1,10 +1,11 @@
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 
 import type { Database } from '../db/client'
 import {
   caffeineEntries,
   calorieEntries,
+  carbsEntries,
   dailyGoalDays,
   dailyGoalStreakState,
   proteinEntries,
@@ -15,13 +16,44 @@ import { getGoalConfig, resolveCalorieGoal } from './goals'
 import { getCurrentDateTime, getTodayBounds } from './time'
 import { calculateTdeeStats } from './tdee'
 
-export type DailyGoalMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'steps'
+export type DailyGoalMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'steps'
+
+export type StreakGoalMetric = 'calorie' | 'protein' | 'sugar' | 'carbs'
+
+export type StreakMetricStatus = {
+  metric: StreakGoalMetric
+  total: number
+  goal: number
+  // 'max' goals must stay at or under the goal, 'min' goals must reach it.
+  kind: 'max' | 'min'
+  met: boolean
+}
+
+export type StreakDaySummary = {
+  localDate: string
+  successful: boolean
+  // Past days are judged once they end; today is a live preview.
+  evaluated: boolean
+  // No entries were logged at all that day, which also breaks the streak.
+  missing: boolean
+  metrics: StreakMetricStatus[]
+}
+
+export type DailyGoalStreakStatus = {
+  currentStreak: number
+  lastBreakDate: string | null
+  today: StreakDaySummary
+  recentDays: StreakDaySummary[]
+}
+
+const RECENT_DAYS = 7
 
 type DailyGoals = {
   calorieGoal: number
   proteinGoal: number
   sugarGoal: number
   caffeineGoal: number
+  carbsGoal: number
   stepsGoal: number
 }
 
@@ -30,6 +62,7 @@ type DailyTotals = {
   proteinTotal: number
   sugarTotal: number
   caffeineTotal: number
+  carbsTotal: number
   stepsTotal: number
 }
 
@@ -60,6 +93,7 @@ export async function recordDailyGoalEntry(options: {
         proteinTotal: existing.proteinTotal,
         sugarTotal: existing.sugarTotal,
         caffeineTotal: existing.caffeineTotal,
+        carbsTotal: existing.carbsTotal,
         stepsTotal: existing.stepsTotal
       }
     : {
@@ -67,6 +101,7 @@ export async function recordDailyGoalEntry(options: {
         proteinTotal: 0,
         sugarTotal: 0,
         caffeineTotal: 0,
+        carbsTotal: 0,
         stepsTotal: 0
       }
 
@@ -98,12 +133,108 @@ export async function refreshUnevaluatedDailyGoalDay(options: {
           proteinGoal: existing.proteinGoal,
           sugarGoal: existing.sugarGoal,
           caffeineGoal: existing.caffeineGoal,
+          carbsGoal: existing.carbsGoal,
           stepsGoal: existing.stepsGoal
         })
       : getDailyGoals(db, createdAt, timezone, fallbackGoal)
   ])
 
   await upsertDailyGoalDay(db, localDate, totals, goals)
+}
+
+export async function getDailyGoalStreakStatus(options: {
+  db: Database
+  now: Date
+  timezone: string
+  fallbackGoal: number
+}): Promise<DailyGoalStreakStatus> {
+  const { db, now, timezone, fallbackGoal } = options
+  const currentStreak = await syncDailyGoalStreak(db, now, timezone)
+  const state = await getStreakState(db)
+  const bounds = getTodayBounds(now, timezone)
+  const existing = await getDailyGoalDay(db, bounds.localDate)
+  const [totals, goals] = await Promise.all([
+    getTotalsForBounds(db, bounds.startUtc, bounds.endUtc),
+    existing
+      ? Promise.resolve({
+          calorieGoal: existing.calorieGoal,
+          proteinGoal: existing.proteinGoal,
+          sugarGoal: existing.sugarGoal,
+          caffeineGoal: existing.caffeineGoal,
+          carbsGoal: existing.carbsGoal,
+          stepsGoal: existing.stepsGoal
+        })
+      : getDailyGoals(db, now, timezone, fallbackGoal)
+  ])
+  const todayMetrics = buildMetricStatuses(totals, goals)
+
+  const current = getCurrentDateTime(now, timezone)
+  const recentDates = Array.from(
+    { length: RECENT_DAYS },
+    (_, index) => current.minus({ days: index + 1 }).toISODate() ?? ''
+  )
+  const rows = await db.select().from(dailyGoalDays).where(inArray(dailyGoalDays.localDate, recentDates))
+  const rowByDate = new Map(rows.map(row => [row.localDate, row]))
+
+  return {
+    currentStreak,
+    lastBreakDate: state?.lastBreakDate ?? null,
+    today: {
+      localDate: bounds.localDate,
+      successful: todayMetrics.every(metric => metric.met),
+      evaluated: false,
+      missing: false,
+      metrics: todayMetrics
+    },
+    recentDays: recentDates.map(localDate => {
+      const day = rowByDate.get(localDate)
+
+      if (!day) {
+        return { localDate, successful: false, evaluated: true, missing: true, metrics: [] }
+      }
+
+      return {
+        localDate,
+        successful: day.successful ?? isSuccessfulDay(day),
+        evaluated: day.evaluatedAt !== null,
+        missing: false,
+        metrics: buildMetricStatuses(day, day)
+      }
+    })
+  }
+}
+
+function buildMetricStatuses(totals: DailyTotals, goals: DailyGoals): StreakMetricStatus[] {
+  return [
+    {
+      metric: 'calorie',
+      total: totals.calorieTotal,
+      goal: goals.calorieGoal,
+      kind: 'max',
+      met: totals.calorieTotal <= goals.calorieGoal
+    },
+    {
+      metric: 'protein',
+      total: totals.proteinTotal,
+      goal: goals.proteinGoal,
+      kind: 'min',
+      met: totals.proteinTotal >= goals.proteinGoal
+    },
+    {
+      metric: 'sugar',
+      total: totals.sugarTotal,
+      goal: goals.sugarGoal,
+      kind: 'max',
+      met: totals.sugarTotal <= goals.sugarGoal
+    },
+    {
+      metric: 'carbs',
+      total: totals.carbsTotal,
+      goal: goals.carbsGoal,
+      kind: 'max',
+      met: totals.carbsTotal <= goals.carbsGoal
+    }
+  ]
 }
 
 export async function syncDailyGoalStreak(db: Database, now: Date, timezone: string) {
@@ -176,6 +307,7 @@ async function getDailyGoals(
     proteinGoal: goalConfig.protein,
     sugarGoal: goalConfig.sugar,
     caffeineGoal: goalConfig.caffeine,
+    carbsGoal: goalConfig.carbs,
     stepsGoal: goalConfig.steps
   }
 }
@@ -217,11 +349,12 @@ async function upsertDailyGoalDay(
 }
 
 async function getTotalsForBounds(db: Database, startUtc: Date, endUtc: Date): Promise<DailyTotals> {
-  const [calories, protein, sugar, caffeine, steps] = await Promise.all([
+  const [calories, protein, sugar, caffeine, carbs, steps] = await Promise.all([
     getEntryTotal(db, calorieEntries, startUtc, endUtc),
     getEntryTotal(db, proteinEntries, startUtc, endUtc),
     getEntryTotal(db, sugarEntries, startUtc, endUtc),
     getEntryTotal(db, caffeineEntries, startUtc, endUtc),
+    getEntryTotal(db, carbsEntries, startUtc, endUtc),
     getEntryTotal(db, stepsEntries, startUtc, endUtc)
   ])
 
@@ -230,6 +363,7 @@ async function getTotalsForBounds(db: Database, startUtc: Date, endUtc: Date): P
     proteinTotal: protein,
     sugarTotal: sugar,
     caffeineTotal: caffeine,
+    carbsTotal: carbs,
     stepsTotal: steps
   }
 }
@@ -241,6 +375,7 @@ async function getEntryTotal(
     | typeof proteinEntries
     | typeof sugarEntries
     | typeof caffeineEntries
+    | typeof carbsEntries
     | typeof stepsEntries,
   startUtc: Date,
   endUtc: Date
@@ -253,13 +388,14 @@ async function getEntryTotal(
   return entries.reduce((sum, entry) => sum + entry.amount, 0)
 }
 
+// Caffeine and steps totals are still recorded on the day row for reference,
+// but only calories, protein, sugar, and carbs decide whether the day counts.
 function isSuccessfulDay(day: NonNullable<Awaited<ReturnType<typeof getDailyGoalDay>>>) {
   return (
     day.calorieTotal <= day.calorieGoal &&
     day.proteinTotal >= day.proteinGoal &&
     day.sugarTotal <= day.sugarGoal &&
-    day.caffeineTotal <= day.caffeineGoal &&
-    day.stepsTotal >= day.stepsGoal
+    day.carbsTotal <= day.carbsGoal
   )
 }
 

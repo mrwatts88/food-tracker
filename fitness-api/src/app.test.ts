@@ -180,6 +180,7 @@ async function addSuccessfulDailyGoalEntries(createdAt: Date) {
   await addEntryAt('protein', createdAt, 120)
   await addEntryAt('sugar', createdAt, 50)
   await addEntryAt('caffeine', createdAt, 100)
+  await addEntryAt('carbs', createdAt, 150)
   await addEntryAt('steps', createdAt, 8000)
 }
 
@@ -1516,14 +1517,13 @@ describe('fitness api', () => {
     expect(body.dailyGoalStreak).toBe(0)
   })
 
-  it('resets the daily goal streak when steps miss their minimum', async () => {
+  it('resets the daily goal streak when carbs exceed their maximum', async () => {
     await clearTrackingData()
     const entryDate = new Date('2026-03-16T17:00:00.000Z')
     await addEntryAt('calories', entryDate, 1500)
     await addEntryAt('protein', entryDate, 120)
     await addEntryAt('sugar', entryDate, 50)
-    await addEntryAt('caffeine', entryDate, 100)
-    await addEntryAt('steps', entryDate, 6999)
+    await addEntryAt('carbs', entryDate, 201)
 
     const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
 
@@ -1534,6 +1534,57 @@ describe('fitness api', () => {
 
     expect(response.status).toBe(200)
     expect(body.dailyGoalStreak).toBe(0)
+  })
+
+  it('keeps the daily goal streak when caffeine and steps miss their goals', async () => {
+    await clearTrackingData()
+    const entryDate = new Date('2026-03-16T17:00:00.000Z')
+    await addEntryAt('calories', entryDate, 1500)
+    await addEntryAt('protein', entryDate, 120)
+    await addEntryAt('sugar', entryDate, 50)
+    await addEntryAt('carbs', entryDate, 150)
+    await addEntryAt('caffeine', entryDate, 400)
+    await addEntryAt('steps', entryDate, 100)
+
+    const unlockApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
+
+    const response = await unlockApp.request('/api/calories/unlock-status')
+    const body = (await response.json()) as {
+      dailyGoalStreak: number
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.dailyGoalStreak).toBe(1)
+  })
+
+  it('reports the daily goal streak status with today and recent days', async () => {
+    await clearTrackingData()
+    await addSuccessfulDailyGoalEntries(new Date('2026-03-16T17:00:00.000Z'))
+    await addEntryAt('calories', new Date('2026-03-17T15:00:00.000Z'), 300)
+    await addEntryAt('sugar', new Date('2026-03-17T15:00:00.000Z'), 81)
+
+    const statusApp = createTestApp({ now: new Date('2026-03-17T17:00:00.000Z') })
+    const response = await statusApp.request('/api/daily-goals/status')
+    const body = (await response.json()) as {
+      currentStreak: number
+      lastBreakDate: string | null
+      today: { localDate: string; successful: boolean; metrics: Array<{ metric: string; met: boolean }> }
+      recentDays: Array<{ localDate: string; successful: boolean; missing: boolean }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.currentStreak).toBe(1)
+    expect(body.today.localDate).toBe('2026-03-17')
+    expect(body.today.successful).toBe(false)
+    expect(body.today.metrics.map(metric => [metric.metric, metric.met])).toEqual([
+      ['calorie', true],
+      ['protein', false],
+      ['sugar', false],
+      ['carbs', true]
+    ])
+    expect(body.recentDays).toHaveLength(7)
+    expect(body.recentDays[0]).toMatchObject({ localDate: '2026-03-16', successful: true, missing: false })
+    expect(body.recentDays[1]).toMatchObject({ localDate: '2026-03-15', successful: false, missing: true })
   })
 
   it('does not rewrite an evaluated daily goal streak after config changes', async () => {
@@ -2065,7 +2116,7 @@ describe('fitness api', () => {
 })
 
 describe('carbs entries', () => {
-  it('creates and lists carbs entries without touching the daily goal streak', async () => {
+  it('creates and lists carbs entries and records them on the daily goal day', async () => {
     await clearTrackingData()
 
     const createResponse = await app.request('/api/carbs', {
@@ -2082,7 +2133,8 @@ describe('carbs entries', () => {
     await expect(listResponse.json()).resolves.toMatchObject([{ amount: 45 }])
 
     const goalDays = await db.select().from(dailyGoalDays)
-    expect(goalDays).toEqual([])
+    expect(goalDays).toHaveLength(1)
+    expect(goalDays[0]).toMatchObject({ carbsTotal: 45, carbsGoal: 200 })
 
     await clearTrackingData()
   })

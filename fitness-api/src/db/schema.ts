@@ -52,11 +52,13 @@ export const dailyGoalDays = pgTable('daily_goal_days', {
   proteinTotal: integer('protein_total').notNull().default(0),
   sugarTotal: integer('sugar_total').notNull().default(0),
   caffeineTotal: integer('caffeine_total').notNull().default(0),
+  carbsTotal: integer('carbs_total').notNull().default(0),
   stepsTotal: integer('steps_total').notNull().default(0),
   calorieGoal: integer('calorie_goal').notNull(),
   proteinGoal: integer('protein_goal').notNull(),
   sugarGoal: integer('sugar_goal').notNull(),
   caffeineGoal: integer('caffeine_goal').notNull(),
+  carbsGoal: integer('carbs_goal').notNull().default(200),
   stepsGoal: integer('steps_goal').notNull(),
   successful: boolean('successful'),
   evaluatedAt: timestamp('evaluated_at', { withTimezone: true })

@@ -54,6 +54,7 @@ Shared response/request types live in:
 - `POST /api/carbs`
 - `DELETE /api/carbs/:id`
 - `GET /api/nutrition/goals`
+- `GET /api/daily-goals/status`
 - `GET /api/config`
 - `PUT /api/config/:metric`
 - `GET /api/weight`

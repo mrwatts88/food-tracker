@@ -28,6 +28,7 @@ import { calculateUnlockStatus } from './lib/calorie-unlock'
 import {
   recordDailyGoalEntry,
   refreshUnevaluatedDailyGoalDay,
+  getDailyGoalStreakStatus,
   syncDailyGoalStreak
 } from './lib/daily-goal-streak'
 import { DEFAULT_GOAL_CONFIG, getGoalConfig } from './lib/goals'
@@ -239,6 +240,19 @@ export function createApp(dependencies: AppDependencies = {}) {
     })
 
     return c.json(unlockStatus)
+  })
+
+  app.get('/daily-goals/status', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+
+    return c.json(
+      await getDailyGoalStreakStatus({
+        db: runtime.db,
+        now: runtime.now(),
+        timezone: runtime.config.appTimezone,
+        fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+      })
+    )
   })
 
   app.post('/calories', async c => {
@@ -532,18 +546,14 @@ function registerNutritionEntryRoutes(
       .returning()
 
     const createdEntry = assertFound(entry, `Failed to create ${path} entry`)
-
-    // Carbs are tracked and displayed but do not take part in the daily goal streak.
-    if (path !== 'carbs') {
-      await recordDailyGoalEntry({
-        db: runtime.db,
-        metric: path,
-        amount: input.amount,
-        createdAt,
-        timezone: runtime.config.appTimezone,
-        fallbackGoal: runtime.config.calorieUnlockFallbackGoal
-      })
-    }
+    await recordDailyGoalEntry({
+      db: runtime.db,
+      metric: path,
+      amount: input.amount,
+      createdAt,
+      timezone: runtime.config.appTimezone,
+      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+    })
 
     if (activeNotifier !== null && alertMetric !== null) {
       const afterTotal = beforeTotal + input.amount

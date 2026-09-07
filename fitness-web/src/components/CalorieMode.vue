@@ -4,13 +4,14 @@ import { useRouter } from 'vue-router'
 
 import { isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
 import { useTrackLocks } from '@/lib/trackLocks'
-import { calorieApi, nutritionApi, voiceApi } from '@/services/api'
+import { calorieApi, dailyGoalApi, nutritionApi, voiceApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useEntryDividerStore } from '@/stores/entryDivider'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
 import type {
+  DailyGoalStreakStatus,
   EntryMetric,
   TrackMetric,
   VoiceMetric,
@@ -19,6 +20,7 @@ import type {
 } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
+import StreakModal from './StreakModal.vue'
 import VoiceEntryButton from './VoiceEntryButton.vue'
 import VoiceEntryModal from './VoiceEntryModal.vue'
 
@@ -30,13 +32,23 @@ const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const { isTrackLocked } = useTrackLocks()
 const LISTENING_TIMEOUT_SECONDS = 20
-const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = ['protein', 'sugar', 'carbs', 'caffeine']
+const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = [
+  'protein',
+  'sugar',
+  'carbs',
+  'caffeine',
+]
 
 const voiceState = ref<VoiceSessionState>('idle')
 const recordingSecondsRemaining = ref(LISTENING_TIMEOUT_SECONDS)
 const voicePreview = ref<VoiceParsePreview | null>(null)
 const voiceError = ref<string | null>(null)
 const savingVoicePreview = ref(false)
+
+const streakModalOpen = ref(false)
+const streakStatus = ref<DailyGoalStreakStatus | null>(null)
+const streakLoading = ref(false)
+const streakError = ref<string | null>(null)
 
 let mediaRecorder: MediaRecorder | null = null
 let mediaStream: MediaStream | null = null
@@ -130,6 +142,26 @@ async function handleInsertDivider() {
   }
 
   await entryDividerStore.addDivider()
+}
+
+async function openStreakModal() {
+  streakModalOpen.value = true
+  streakLoading.value = true
+  streakError.value = null
+
+  try {
+    const response = await dailyGoalApi.getStreakStatus()
+    streakStatus.value = response.data
+  } catch (error) {
+    console.error('Failed to load daily goal streak status:', error)
+    streakError.value = 'Streak details could not be loaded.'
+  } finally {
+    streakLoading.value = false
+  }
+}
+
+function closeStreakModal() {
+  streakModalOpen.value = false
 }
 
 function handleSettingsClick() {
@@ -410,6 +442,7 @@ async function confirmVoicePreview() {
     await Promise.all([
       calorieStore.refreshData({ setLoading: false }),
       nutritionStore.refreshData({ setLoading: false }),
+      entryDividerStore.fetchEntries({ setLoading: false }),
     ])
   }
 }
@@ -431,7 +464,13 @@ onBeforeUnmount(() => {
         @select-metric="handleTrackMetricSelect"
       />
       <div v-if="showTrackActions" class="track-actions">
-        <div class="track-streak-badge" aria-label="Daily goal streak">
+        <button
+          class="track-streak-badge"
+          type="button"
+          aria-label="Daily goal streak details"
+          title="Daily goal streak"
+          @click="openStreakModal"
+        >
           <svg
             class="track-streak-icon"
             width="18"
@@ -445,10 +484,9 @@ onBeforeUnmount(() => {
             />
           </svg>
           <span>{{ streakSummary }}</span>
-        </div>
+        </button>
         <button
           class="track-action-button track-action-button--divider"
-          :style="{ '--track-action-accent': keyboardAccentColor }"
           :disabled="keyboardSubmitting"
           @click="handleInsertDivider"
         >
@@ -501,6 +539,13 @@ onBeforeUnmount(() => {
         @submit="handleSubmit"
       />
     </div>
+    <StreakModal
+      v-if="streakModalOpen"
+      :status="streakStatus"
+      :loading="streakLoading"
+      :error="streakError"
+      @close="closeStreakModal"
+    />
     <VoiceEntryModal
       v-if="voicePreview !== null && voiceState === 'preview'"
       :preview="voicePreview"
@@ -557,9 +602,11 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
 }
 
+/* Dividers are global across every metric's history, so BINK keeps one color. */
 .track-action-button--divider {
-  background: color-mix(in srgb, var(--track-action-accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--track-action-accent) 40%, transparent);
+  --track-action-accent: #e2e8f0;
+  background: rgba(226, 232, 240, 0.1);
+  border-color: rgba(226, 232, 240, 0.32);
   color: var(--track-action-accent);
 }
 
@@ -580,6 +627,8 @@ onBeforeUnmount(() => {
 .track-streak-badge {
   min-width: 0;
   min-height: 42px;
+  font: inherit;
+  cursor: pointer;
   padding: 10px 6px;
   border: 1px solid rgba(245, 158, 11, 0.42);
   border-radius: var(--border-radius);

@@ -869,11 +869,12 @@ function formatNumber(value: number) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px 0 12px;
+  gap: 16px;
+  padding: 0 8px 0 12px;
   border-radius: var(--border-radius);
   border: 1px solid color-mix(in srgb, var(--macro-accent) 30%, transparent);
-  background: color-mix(in srgb, var(--macro-accent) 7%, transparent);
+  /* Opaque so the card gradient does not show through the rows. */
+  background: var(--color-background);
   transition:
     border-color 0.2s ease,
     background 0.2s ease;
@@ -881,7 +882,7 @@ function formatNumber(value: number) {
 
 .macro-row--active {
   border-color: var(--macro-accent);
-  background: color-mix(in srgb, var(--macro-accent) 16%, transparent);
+  background: color-mix(in srgb, var(--macro-accent) 18%, var(--color-background));
 }
 
 .macro-row--submitting {
@@ -967,6 +968,7 @@ function formatNumber(value: number) {
 .macro-row-history {
   color: var(--macro-accent);
   background: transparent;
+  padding: 8px;
 }
 
 .loading-spinner--small {
