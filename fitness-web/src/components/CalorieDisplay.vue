@@ -639,6 +639,7 @@ function formatNumber(value: number) {
 
 <style scoped>
 .calorie-display {
+  position: relative; /* anchors the page dots */
   flex: 1;
   width: 100%;
   display: flex;
