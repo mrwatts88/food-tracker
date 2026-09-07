@@ -1,11 +1,16 @@
 import type { EntryMetric, NutritionMetric } from '@/types'
 
-export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine', 'steps']
+export const nutritionMetrics: NutritionMetric[] = ['protein', 'sugar', 'caffeine', 'carbs', 'steps']
+
+// The macros shown on the second page of the home card. Caffeine and steps stay
+// tracked (voice, CLI, history) but are not surfaced there.
+export const homeMacroMetrics: NutritionMetric[] = ['protein', 'sugar', 'carbs']
 
 export const nutritionMetricLabels: Record<NutritionMetric, string> = {
   protein: 'Protein',
   sugar: 'Sugar',
   caffeine: 'Caffeine',
+  carbs: 'Carbs',
   steps: 'Steps'
 }
 
@@ -13,6 +18,7 @@ export const nutritionMetricUnits: Record<NutritionMetric, string> = {
   protein: 'g',
   sugar: 'g',
   caffeine: 'mg',
+  carbs: 'g',
   steps: 'steps'
 }
 
@@ -20,6 +26,7 @@ export const nutritionMetricColorVars: Record<NutritionMetric, string> = {
   protein: 'var(--color-protein-primary)',
   sugar: 'var(--color-sugar-primary)',
   caffeine: 'var(--color-caffeine-primary)',
+  carbs: 'var(--color-carbs-primary)',
   steps: 'var(--color-steps-primary)'
 }
 

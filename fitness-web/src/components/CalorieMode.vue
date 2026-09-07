@@ -30,7 +30,7 @@ const nutritionStore = useNutritionStore()
 const weightStore = useWeightStore()
 const { isTrackLocked } = useTrackLocks()
 const LISTENING_TIMEOUT_SECONDS = 20
-const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = ['protein', 'sugar', 'caffeine']
+const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = ['protein', 'sugar', 'carbs', 'caffeine']
 
 const voiceState = ref<VoiceSessionState>('idle')
 const recordingSecondsRemaining = ref(LISTENING_TIMEOUT_SECONDS)

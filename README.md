@@ -89,7 +89,7 @@ ln -sf "$PWD/scripts/fitness.mjs" ~/.local/bin/fitness
 
 ```bash
 fitness 30                      # 30 calories — direct POST, no LLM
-fitness protein 40              # also: sugar, caffeine
+fitness protein 40              # also: sugar, carbs, caffeine
 fitness ate a bagel and a coffee  # estimated, then logs each metric (~3s)
 fitness -n a bagel              # preview without logging
 ```

@@ -10,6 +10,7 @@ import { readMigrationFiles } from './db/run-migrations'
 import {
   caffeineEntries,
   calorieEntries,
+  carbsEntries,
   dailyGoalDays,
   dailyGoalStreakState,
   entryDividers,
@@ -107,7 +108,7 @@ function createOpenAiVoiceParserMock(options: {
           name?: string
           quantityText?: string | null
           estimated: Array<{
-            metric: 'calorie' | 'protein' | 'sugar' | 'caffeine'
+            metric: 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs'
             amount: number
           }>
         }>
@@ -151,6 +152,7 @@ async function clearTrackingData() {
   await db.delete(proteinEntries)
   await db.delete(sugarEntries)
   await db.delete(caffeineEntries)
+  await db.delete(carbsEntries)
   await db.delete(stepsEntries)
   await db.delete(entryDividers)
   await db.delete(dailyGoalDays)
@@ -159,7 +161,7 @@ async function clearTrackingData() {
 }
 
 async function addEntryAt(
-  path: 'calories' | 'protein' | 'sugar' | 'caffeine' | 'steps',
+  path: 'calories' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'steps',
   createdAt: Date,
   amount: number
 ) {
@@ -291,7 +293,8 @@ describe('fitness api', () => {
         calorie: 0,
         protein: 4,
         sugar: 20,
-        caffeine: 100
+        caffeine: 100,
+        carbs: 0
       },
       warnings: []
     })
@@ -338,7 +341,8 @@ describe('fitness api', () => {
         calorie: 300,
         protein: 10,
         sugar: 0,
-        caffeine: 0
+        caffeine: 0,
+        carbs: 0
       }
     })
   })
@@ -366,7 +370,7 @@ describe('fitness api', () => {
       body: createAudioFormData()
     })
     const body = (await response.json()) as {
-      totals: Record<'calorie' | 'protein' | 'sugar' | 'caffeine', number>
+      totals: Record<'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs', number>
       items: Array<{
         estimated: Array<{ metric: string; amount: number }>
       }>
@@ -377,7 +381,8 @@ describe('fitness api', () => {
       calorie: 0,
       protein: 10,
       sugar: 0,
-      caffeine: 0
+      caffeine: 0,
+      carbs: 0
     })
     expect(body.items[0]?.estimated).toEqual([{ metric: 'protein', amount: 10 }])
   })
@@ -415,7 +420,8 @@ describe('fitness api', () => {
         calorie: 105,
         protein: 1,
         sugar: 14,
-        caffeine: 0
+        caffeine: 0,
+        carbs: 0
       },
       items: [
         {
@@ -464,7 +470,8 @@ describe('fitness api', () => {
         calorie: 200,
         protein: 20,
         sugar: 8,
-        caffeine: 100
+        caffeine: 100,
+        carbs: 0
       }
     })
   })
@@ -502,7 +509,8 @@ describe('fitness api', () => {
         calorie: 280,
         protein: 10,
         sugar: 0,
-        caffeine: 0
+        caffeine: 0,
+        carbs: 0
       }
     })
     expect(openai.audio.transcriptions.create).not.toHaveBeenCalled()
@@ -547,7 +555,8 @@ describe('fitness api', () => {
         calorie: 0,
         protein: 0,
         sugar: 0,
-        caffeine: 0
+        caffeine: 0,
+        carbs: 0
       },
       warnings: ['No speech was detected.']
     })
@@ -575,7 +584,8 @@ describe('fitness api', () => {
         calorie: 0,
         protein: 0,
         sugar: 0,
-        caffeine: 0
+        caffeine: 0,
+        carbs: 0
       },
       warnings: ['No nutrition entries were detected from the request.']
     })
@@ -601,6 +611,7 @@ describe('fitness api', () => {
       protein: 100,
       sugar: 80,
       caffeine: 280,
+      carbs: 200,
       steps: 7000,
       calorieDeficit: 250,
       calorieTarget: null
@@ -623,6 +634,7 @@ describe('fitness api', () => {
       protein: 120,
       sugar: 80,
       caffeine: 280,
+      carbs: 200,
       steps: 7000,
       calorieDeficit: 250,
       calorieTarget: null
@@ -648,6 +660,7 @@ describe('fitness api', () => {
       { metric: 'caffeine', amount: 280 },
       { metric: 'calorie_deficit', amount: 250 },
       { metric: 'calorie_target', amount: 0 },
+      { metric: 'carbs', amount: 200 },
       { metric: 'protein', amount: 130 },
       { metric: 'steps', amount: 7000 },
       { metric: 'sugar', amount: 80 }
@@ -702,6 +715,7 @@ describe('fitness api', () => {
         protein: 100,
         sugar: 80,
         caffeine: 280,
+        carbs: 200,
         steps: 7000,
         calorieDeficit: 250,
         calorieTarget: null
@@ -2047,5 +2061,29 @@ describe('fitness api', () => {
       calorieDeficit: 250,
       calorieTarget: null
     })
+  })
+})
+
+describe('carbs entries', () => {
+  it('creates and lists carbs entries without touching the daily goal streak', async () => {
+    await clearTrackingData()
+
+    const createResponse = await app.request('/api/carbs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 45 })
+    })
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toMatchObject({ amount: 45 })
+
+    const listResponse = await app.request('/api/carbs')
+    expect(listResponse.status).toBe(200)
+    await expect(listResponse.json()).resolves.toMatchObject([{ amount: 45 }])
+
+    const goalDays = await db.select().from(dailyGoalDays)
+    expect(goalDays).toEqual([])
+
+    await clearTrackingData()
   })
 })

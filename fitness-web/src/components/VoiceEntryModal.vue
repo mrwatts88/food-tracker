@@ -35,6 +35,11 @@ const orderedTotals = computed<Array<{ metric: VoiceMetric; amount: number; labe
     label: formatNutritionTotal('sugar', props.preview.totals.sugar)
   },
   {
+    metric: 'carbs',
+    amount: props.preview.totals.carbs,
+    label: formatNutritionTotal('carbs', props.preview.totals.carbs)
+  },
+  {
     metric: 'caffeine',
     amount: props.preview.totals.caffeine,
     label: formatNutritionTotal('caffeine', props.preview.totals.caffeine)
