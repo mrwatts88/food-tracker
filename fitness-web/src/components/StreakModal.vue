@@ -41,7 +41,7 @@ const metricUnits: Record<AnyStreakMetric, string> = {
   sugar: 'g',
   carbs: 'g',
   caffeine: 'mg',
-  steps: 'steps',
+  steps: '',
 }
 
 const metricColors: Record<AnyStreakMetric, string> = {
@@ -82,16 +82,18 @@ function describeMiss(metric: StreakMetricStatus) {
   const label = metricLabels[metric.metric].toLowerCase()
 
   const suffix = metric.counted ? '' : ' (old rule)'
+  const amount = (value: number) => (unit ? `${formatNumber(value)} ${unit}` : formatNumber(value))
 
   if (metric.kind === 'min') {
-    return `${label} ${formatNumber(metric.goal - metric.total)} ${unit} short${suffix}`
+    return `${label} ${amount(metric.goal - metric.total)} short${suffix}`
   }
 
-  return `${label} ${formatNumber(metric.total - metric.goal)} ${unit} over${suffix}`
+  return `${label} ${amount(metric.total - metric.goal)} over${suffix}`
 }
 
 function describeGoal(metric: StreakMetricStatus) {
-  const target = `${formatNumber(metric.goal)} ${metricUnits[metric.metric]}`
+  const unit = metricUnits[metric.metric]
+  const target = unit ? `${formatNumber(metric.goal)} ${unit}` : formatNumber(metric.goal)
 
   return metric.kind === 'min' ? `at least ${target}` : `under ${target}`
 }
