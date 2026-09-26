@@ -21,6 +21,7 @@ import type {
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
 import StreakModal from './StreakModal.vue'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- button temporarily hidden
 import VoiceEntryButton from './VoiceEntryButton.vue'
 import VoiceEntryModal from './VoiceEntryModal.vue'
 
@@ -91,6 +92,7 @@ const activeMetricLocked = computed(
   () => appStore.activeMetric !== 'weight' && isTrackLocked(appStore.activeMetric),
 )
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- button temporarily hidden
 const streakSummary = computed(() => {
   const status = calorieStore.unlockStatus
 
@@ -144,6 +146,7 @@ async function handleInsertDivider() {
   await entryDividerStore.addDivider()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- button temporarily hidden
 async function openStreakModal() {
   streakModalOpen.value = true
   streakLoading.value = true
@@ -381,6 +384,7 @@ function stopVoiceListening(reason: 'send' | 'cancel' | 'timeout') {
   mediaRecorder.stop()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- button temporarily hidden
 async function handleVoicePress() {
   if (voiceState.value === 'idle') {
     await startVoiceListening()
@@ -464,6 +468,7 @@ onBeforeUnmount(() => {
         @select-metric="handleTrackMetricSelect"
       />
       <div v-if="showTrackActions" class="track-actions">
+        <!-- Temporarily hidden: streak button.
         <button
           class="track-streak-badge"
           type="button"
@@ -485,6 +490,7 @@ onBeforeUnmount(() => {
           </svg>
           <span>{{ streakSummary }}</span>
         </button>
+        -->
         <button
           class="track-action-button track-action-button--divider"
           :disabled="keyboardSubmitting"
@@ -517,6 +523,7 @@ onBeforeUnmount(() => {
             />
           </svg>
         </button>
+        <!-- Temporarily hidden: voice entry button.
         <VoiceEntryButton
           :state="voiceState"
           :supported="voiceSupported"
@@ -524,6 +531,7 @@ onBeforeUnmount(() => {
           :seconds-remaining="recordingSecondsRemaining"
           @press="handleVoicePress"
         />
+        -->
       </div>
     </div>
     <div class="input-section">
@@ -575,7 +583,8 @@ onBeforeUnmount(() => {
 
 .track-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Two columns while the streak and voice buttons are hidden; was repeat(4, ...). */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
