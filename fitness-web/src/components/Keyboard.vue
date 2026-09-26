@@ -6,7 +6,7 @@ type ScaleField = 'servingGrams' | 'servingAmount' | 'eatenGrams'
 
 const SCALE_FIELDS: ScaleField[] = ['servingGrams', 'servingAmount', 'eatenGrams']
 
-// Module-level so the last label survives switching metrics, for a second helping later.
+// Module-level so a half-entered scale survives switching metrics.
 const scaleValues = ref<Record<ScaleField, string>>({ servingGrams: '', servingAmount: '', eatenGrams: '' })
 </script>
 
@@ -121,8 +121,7 @@ function submitScale() {
   if (scaleResult.value <= 0 || props.submitting || props.disabled) return
 
   emit('submit', scaleResult.value)
-  // Keep the label for next time; the weighed amount is specific to this helping.
-  scaleValues.value.eatenGrams = ''
+  scaleValues.value = { servingGrams: '', servingAmount: '', eatenGrams: '' }
   scaleOpen.value = false
 }
 

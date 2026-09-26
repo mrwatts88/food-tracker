@@ -95,9 +95,7 @@ const unlockStatus = computed(() => calorieStore.unlockStatus)
 // (the request failed) fall back to the plain full-day remaining amount.
 const caloriesEaten = computed(() => calorieStore.totalCalories)
 const caloriesAllowed = computed(() => calorieStore.effectiveDailyTarget)
-const caloriesUnlocked = computed(
-  () => unlockStatus.value?.unlockedCalories ?? caloriesAllowed.value,
-)
+const caloriesRemaining = computed(() => calorieStore.remainingCalories)
 const caloriesAvailable = computed(
   () => unlockStatus.value?.availableCalories ?? Math.max(0, calorieStore.remainingCalories),
 )
@@ -522,8 +520,8 @@ function formatNumber(value: number) {
                   <div class="summary-split-label">Eaten</div>
                 </div>
                 <div class="summary-split">
-                  <div class="summary-split-value">{{ formatNumber(caloriesUnlocked) }}</div>
-                  <div class="summary-split-label">Unlocked</div>
+                  <div class="summary-split-value">{{ formatNumber(caloriesRemaining) }}</div>
+                  <div class="summary-split-label">Remaining</div>
                 </div>
                 <div class="summary-split">
                   <div class="summary-split-value">{{ formatNumber(caloriesAllowed) }}</div>
