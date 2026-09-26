@@ -8,6 +8,7 @@ import { createApp } from './app'
 import type { AppConfig } from './config'
 import { readMigrationFiles } from './db/run-migrations'
 import {
+  appSettings,
   caffeineEntries,
   calorieEntries,
   carbsEntries,
@@ -1347,6 +1348,76 @@ describe('fitness api', () => {
       unlockedCalories: 750,
       nextScheduledUnlockCalories: 251
     })
+  })
+
+  it('returns the default unlock schedule when none has been saved', async () => {
+    await db.delete(appSettings)
+
+    const response = await app.request('/api/calories/unlock-schedule')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      slots: [
+        { time: '09:00', fraction: 0.25 },
+        { time: '12:00', fraction: 0.25 },
+        { time: '17:00', fraction: 0.25 },
+        { time: '21:00', fraction: 0.25 }
+      ],
+      isDefault: true
+    })
+  })
+
+  it('saves an unlock schedule from the app and uses it for unlock status', async () => {
+    await clearTrackingData()
+    await db.delete(appSettings)
+
+    const saveResponse = await app.request('/api/calories/unlock-schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slots: [
+          { time: '11:00', fraction: 0.6 },
+          { time: '07:00', fraction: 0.4 }
+        ]
+      })
+    })
+
+    expect(saveResponse.status).toBe(200)
+    expect(await saveResponse.json()).toEqual({
+      slots: [
+        { time: '07:00', fraction: 0.4 },
+        { time: '11:00', fraction: 0.6 }
+      ],
+      isDefault: false
+    })
+
+    // 17:00Z is noon in Chicago, so both unlocks have landed.
+    const statusResponse = await app.request('/api/calories/unlock-status')
+    const status = (await statusResponse.json()) as { unlockedCalories: number; allCaloriesUnlockedToday: boolean }
+
+    expect(status).toMatchObject({ unlockedCalories: 2000, allCaloriesUnlockedToday: true })
+
+    const resetResponse = await app.request('/api/calories/unlock-schedule', { method: 'DELETE' })
+    expect(await resetResponse.json()).toMatchObject({ isDefault: true })
+  })
+
+  it('rejects an unlock schedule whose fractions do not sum to 1', async () => {
+    await db.delete(appSettings)
+
+    const response = await app.request('/api/calories/unlock-schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slots: [
+          { time: '09:00', fraction: 0.5 },
+          { time: '12:00', fraction: 0.4 }
+        ]
+      })
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Calorie unlock schedule fractions must sum to 1' })
+    expect(await db.select().from(appSettings)).toEqual([])
   })
 
   it('accepts calorie posts while overdrawn and reports the resulting debt', async () => {

@@ -10,6 +10,8 @@ import type {
   NutritionEntry,
   NutritionMetric,
   TDEEResponse,
+  UnlockSchedule,
+  UnlockScheduleSlot,
   UnlockStatus,
   VoiceParsePreview,
   WeightEntry,
@@ -28,6 +30,10 @@ const api = axios.create({
 export const calorieApi = {
   getEntries: () => api.get<CalorieEntry[]>('/calories'),
   getUnlockStatus: () => api.get<UnlockStatus>('/calories/unlock-status'),
+  getUnlockSchedule: () => api.get<UnlockSchedule>('/calories/unlock-schedule'),
+  saveUnlockSchedule: (slots: UnlockScheduleSlot[]) =>
+    api.put<UnlockSchedule>('/calories/unlock-schedule', { slots }),
+  resetUnlockSchedule: () => api.delete<UnlockSchedule>('/calories/unlock-schedule'),
   addEntry: (amount: number) => api.post<CalorieEntry>('/calories', { amount }),
   deleteEntry: (id: number) => api.delete(`/calories/${id}`),
 }

@@ -1,6 +1,17 @@
 <!-- eslint-disable vue/multi-word-component-names -->
+<script lang="ts">
+import { ref } from 'vue'
+
+type ScaleField = 'servingGrams' | 'servingAmount' | 'eatenGrams'
+
+const SCALE_FIELDS: ScaleField[] = ['servingGrams', 'servingAmount', 'eatenGrams']
+
+// Module-level so the last label survives switching metrics, for a second helping later.
+const scaleValues = ref<Record<ScaleField, string>>({ servingGrams: '', servingAmount: '', eatenGrams: '' })
+</script>
+
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onMounted, onBeforeUnmount } from 'vue'
 import type { EntryMetric } from '@/types'
 
 interface Props {
@@ -24,6 +35,97 @@ const currentInput = ref('')
 const hasInput = computed(() => currentInput.value.length > 0)
 const maxInputLength = computed(() => (props.mode === 'steps' ? 5 : 4))
 
+// Serving scaler: "label says 84 g is 150 cal, I weighed 96 g" → 171.
+const scaleOpen = ref(false)
+const scaleField = ref<ScaleField>('servingGrams')
+// The first digit typed into a prefilled field replaces it, like a selected input.
+const scaleReplaceOnType = ref(false)
+const canScale = computed(() => props.mode !== 'weight' && props.mode !== 'steps')
+
+const scaleUnit = computed(() => {
+  if (props.mode === 'calorie') return 'cal'
+  if (props.mode === 'caffeine') return 'mg'
+  return 'g'
+})
+
+const scaleResult = computed(() => {
+  const servingGrams = Number(scaleValues.value.servingGrams)
+  const servingAmount = Number(scaleValues.value.servingAmount)
+  const eatenGrams = Number(scaleValues.value.eatenGrams)
+
+  if (!(servingGrams > 0) || !(servingAmount > 0) || !(eatenGrams > 0)) {
+    return null
+  }
+
+  return Math.round((servingAmount * eatenGrams) / servingGrams)
+})
+
+function openScale() {
+  scaleOpen.value = true
+  currentInput.value = ''
+  selectScaleField(scaleValues.value.servingGrams ? 'servingGrams' : firstEmptyScaleField())
+}
+
+function closeScale() {
+  scaleOpen.value = false
+}
+
+function firstEmptyScaleField() {
+  return SCALE_FIELDS.find((field) => !scaleValues.value[field]) ?? 'servingGrams'
+}
+
+function selectScaleField(field: ScaleField) {
+  scaleField.value = field
+  scaleReplaceOnType.value = scaleValues.value[field].length > 0
+}
+
+function typeIntoScale(num: number) {
+  const field = scaleField.value
+  const current = scaleReplaceOnType.value ? '' : scaleValues.value[field]
+  scaleReplaceOnType.value = false
+
+  if (current.length < 4) {
+    scaleValues.value[field] = current + num.toString()
+  }
+}
+
+function backspaceScale() {
+  const field = scaleField.value
+  scaleReplaceOnType.value = false
+
+  if (scaleValues.value[field]) {
+    scaleValues.value[field] = scaleValues.value[field].slice(0, -1)
+    return
+  }
+
+  const index = SCALE_FIELDS.indexOf(field)
+  if (index > 0) {
+    scaleField.value = SCALE_FIELDS[index - 1] ?? 'servingGrams'
+  }
+}
+
+// ✓ walks through the fields, then logs the scaled amount once all three are in.
+function submitScale() {
+  const nextField = SCALE_FIELDS[SCALE_FIELDS.indexOf(scaleField.value) + 1]
+
+  if (nextField) {
+    selectScaleField(nextField)
+    return
+  }
+
+  if (scaleResult.value === null) {
+    selectScaleField(firstEmptyScaleField())
+    return
+  }
+
+  if (scaleResult.value <= 0 || props.submitting || props.disabled) return
+
+  emit('submit', scaleResult.value)
+  // Keep the label for next time; the weighed amount is specific to this helping.
+  scaleValues.value.eatenGrams = ''
+  scaleOpen.value = false
+}
+
 const displayValue = computed(() => {
   if (props.mode === 'weight' && currentInput.value.length > 0) {
     // For weight, auto-insert decimal before last digit
@@ -38,12 +140,22 @@ const displayValue = computed(() => {
 })
 
 function handleNumberClick(num: number) {
+  if (scaleOpen.value) {
+    typeIntoScale(num)
+    return
+  }
+
   if (currentInput.value.length < maxInputLength.value) {
     currentInput.value += num.toString()
   }
 }
 
 function handleBackspace() {
+  if (scaleOpen.value) {
+    backspaceScale()
+    return
+  }
+
   if (!hasInput.value) {
     return
   }
@@ -62,6 +174,11 @@ function handleClearInput() {
 }
 
 function handleSubmit() {
+  if (scaleOpen.value) {
+    submitScale()
+    return
+  }
+
   if (currentInput.value.length === 0 || props.submitting || props.disabled) return
 
   let value: number
@@ -104,13 +221,69 @@ function handleKeyDown(event: KeyboardEvent) {
     handleBackspace()
   } else if (event.key === 'Enter') {
     handleSubmit()
+  } else if (event.key === 'Escape' && scaleOpen.value) {
+    closeScale()
   }
 }
 </script>
 
 <template>
   <div class="keyboard">
-    <div class="input-display" :class="{ 'has-clear-button': hasInput }">
+    <div v-if="scaleOpen" class="input-display scale-display">
+      <div class="scale-fields">
+        <button
+          type="button"
+          class="scale-field"
+          :class="{ 'scale-field--active': scaleField === 'servingGrams' }"
+          @click="selectScaleField('servingGrams')"
+        >
+          <span class="scale-field-value">{{ scaleValues.servingGrams || '–' }}</span>
+          <span class="scale-field-label">label g</span>
+        </button>
+        <span class="scale-joiner">=</span>
+        <button
+          type="button"
+          class="scale-field"
+          :class="{ 'scale-field--active': scaleField === 'servingAmount' }"
+          @click="selectScaleField('servingAmount')"
+        >
+          <span class="scale-field-value">{{ scaleValues.servingAmount || '–' }}</span>
+          <span class="scale-field-label">label {{ scaleUnit }}</span>
+        </button>
+        <span class="scale-joiner">·</span>
+        <button
+          type="button"
+          class="scale-field"
+          :class="{ 'scale-field--active': scaleField === 'eatenGrams' }"
+          @click="selectScaleField('eatenGrams')"
+        >
+          <span class="scale-field-value">{{ scaleValues.eatenGrams || '–' }}</span>
+          <span class="scale-field-label">ate g</span>
+        </button>
+      </div>
+      <div class="scale-result" :style="{ color: scaleResult !== null ? primaryColor : undefined }">
+        {{ scaleResult ?? '–' }}<small>{{ scaleUnit }}</small>
+      </div>
+      <button type="button" class="scale-close" aria-label="Close serving scaler" @click="closeScale">×</button>
+    </div>
+    <div v-else class="input-display" :class="{ 'has-clear-button': hasInput, 'has-scale-button': canScale }">
+      <button
+        v-if="canScale"
+        type="button"
+        class="input-scale-button"
+        aria-label="Scale a serving by weight"
+        title="Scale a serving by weight"
+        @click="openScale"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 4v16M5 20h14M6 8h12M6 8l-3 6a3 3 0 0 0 6 0L6 8Zm12 0-3 6a3 3 0 0 0 6 0l-3-6Z"
+          />
+        </svg>
+      </button>
       <span class="input-display-value">{{ displayValue }}</span>
       <button
         v-if="hasInput"
@@ -180,6 +353,115 @@ function handleKeyDown(event: KeyboardEvent) {
 .input-display.has-clear-button {
   padding-left: calc(var(--spacing-md) + 44px);
   padding-right: calc(var(--spacing-md) + 44px);
+}
+
+.input-display.has-scale-button {
+  padding-left: calc(var(--spacing-md) + 44px);
+  padding-right: calc(var(--spacing-md) + 44px);
+}
+
+.input-scale-button {
+  position: absolute;
+  top: 50%;
+  left: var(--spacing-sm);
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.input-scale-button:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-50%) scale(0.95);
+}
+
+.scale-display {
+  justify-content: flex-start;
+  gap: var(--spacing-sm);
+  padding: 6px 48px 6px 6px;
+  font-size: inherit;
+}
+
+.scale-fields {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scale-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 46px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.scale-field--active {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scale-field-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.scale-field-label {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scale-joiner {
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
+.scale-result {
+  margin-left: auto;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.scale-result small {
+  margin-left: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.scale-close {
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-sm);
+  width: 32px;
+  height: 32px;
+  transform: translateY(-50%);
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .input-display-value {

@@ -24,7 +24,13 @@ import {
   type AlertEmail,
   type AlertNotifier
 } from './lib/alerts'
-import { calculateUnlockStatus } from './lib/calorie-unlock'
+import {
+  calculateUnlockStatus,
+  getUnlockSchedule,
+  getUnlockScheduleResponse,
+  resetUnlockSchedule,
+  saveUnlockSchedule
+} from './lib/calorie-unlock'
 import {
   recordDailyGoalEntry,
   refreshUnevaluatedDailyGoalDay,
@@ -74,6 +80,17 @@ const liftUpdateSchema = z.object({
   set1Weight: z.number().int().nonnegative(),
   set2Weight: z.number().int().nonnegative(),
   set3Weight: z.number().int().nonnegative()
+})
+const unlockScheduleSchema = z.object({
+  slots: z
+    .array(
+      z.object({
+        time: z.string().regex(/^\d{2}:\d{2}$/),
+        fraction: z.number().positive().max(1)
+      })
+    )
+    .min(1)
+    .max(24)
 })
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'steps'
@@ -223,16 +240,17 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   app.get('/calories/unlock-status', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
-    const [goalConfig, dailyGoalStreak] = await Promise.all([
+    const [goalConfig, dailyGoalStreak, schedule] = await Promise.all([
       getGoalConfig(runtime.db),
-      syncDailyGoalStreak(runtime.db, runtime.now(), runtime.config.appTimezone)
+      syncDailyGoalStreak(runtime.db, runtime.now(), runtime.config.appTimezone),
+      getUnlockSchedule(runtime.db, runtime.config.calorieUnlockSchedule)
     ])
 
     const unlockStatus = await calculateUnlockStatus({
       db: runtime.db,
       now: runtime.now(),
       timezone: runtime.config.appTimezone,
-      schedule: runtime.config.calorieUnlockSchedule,
+      schedule,
       fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
       calorieDeficit: goalConfig.calorieDeficit,
       calorieTarget: goalConfig.calorieTarget,
@@ -240,6 +258,30 @@ export function createApp(dependencies: AppDependencies = {}) {
     })
 
     return c.json(unlockStatus)
+  })
+
+  app.get('/calories/unlock-schedule', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    return c.json(await getUnlockScheduleResponse(runtime.db, runtime.config.calorieUnlockSchedule))
+  })
+
+  app.put('/calories/unlock-schedule', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const input = unlockScheduleSchema.parse(await c.req.json())
+
+    try {
+      await saveUnlockSchedule(runtime.db, input.slots)
+    } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : 'Invalid unlock schedule')
+    }
+
+    return c.json(await getUnlockScheduleResponse(runtime.db, runtime.config.calorieUnlockSchedule))
+  })
+
+  app.delete('/calories/unlock-schedule', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    await resetUnlockSchedule(runtime.db)
+    return c.json(await getUnlockScheduleResponse(runtime.db, runtime.config.calorieUnlockSchedule))
   })
 
   app.get('/daily-goals/status', async c => {
@@ -269,7 +311,7 @@ export function createApp(dependencies: AppDependencies = {}) {
             db: runtime.db,
             now: createdAt,
             timezone: runtime.config.appTimezone,
-            schedule: runtime.config.calorieUnlockSchedule,
+            schedule: await getUnlockSchedule(runtime.db, runtime.config.calorieUnlockSchedule),
             fallbackGoal: runtime.config.calorieUnlockFallbackGoal,
             calorieDeficit: goalConfig.calorieDeficit,
             calorieTarget: goalConfig.calorieTarget,

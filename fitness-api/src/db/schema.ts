@@ -46,6 +46,11 @@ export const nutritionGoals = pgTable('nutrition_goals', {
   amount: integer('amount').notNull()
 })
 
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull()
+})
+
 export const dailyGoalDays = pgTable('daily_goal_days', {
   localDate: date('local_date').primaryKey(),
   calorieTotal: integer('calorie_total').notNull().default(0),
@@ -96,6 +101,7 @@ export const schema = {
   stepsEntries,
   entryDividers,
   nutritionGoals,
+  appSettings,
   dailyGoalDays,
   dailyGoalStreakState,
   weightEntries,

@@ -75,6 +75,16 @@ export interface TDEEResponse {
   calorieTarget: number | null
 }
 
+export interface UnlockScheduleSlot {
+  time: string
+  fraction: number
+}
+
+export interface UnlockSchedule {
+  slots: UnlockScheduleSlot[]
+  isDefault: boolean
+}
+
 export interface UnlockStatus {
   dailyTargetCalories: number
   consumedCalories: number

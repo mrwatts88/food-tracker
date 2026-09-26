@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import UnlockScheduleEditor from '@/components/UnlockScheduleEditor.vue'
 import { configApi } from '@/services/api'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
@@ -123,6 +124,8 @@ onMounted(fetchValues)
         </button>
       </div>
     </form>
+
+    <UnlockScheduleEditor />
   </section>
 </template>
 

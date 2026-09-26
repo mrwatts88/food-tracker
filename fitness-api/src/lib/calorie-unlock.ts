@@ -1,13 +1,14 @@
-import { asc } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { DateTime } from 'luxon'
 
 import type { Database } from '../db/client'
-import { calorieEntries } from '../db/schema'
+import { appSettings, calorieEntries } from '../db/schema'
 import { getCurrentDateTime, toZonedIso } from './time'
 import { resolveCalorieGoal } from './goals'
 import { calculateTdeeStats } from './tdee'
 
 const FRACTION_SUM_TOLERANCE = 0.000001
+const UNLOCK_SCHEDULE_SETTING_KEY = 'calorie_unlock_schedule'
 
 type UnlockScheduleSlot = {
   hour: number
@@ -45,6 +46,74 @@ export type UnlockStatus = {
   noBorrowUnlockStreak: number
   timezone: string
   serverNow: string
+}
+
+export type UnlockScheduleEntry = {
+  time: string
+  fraction: number
+}
+
+export type UnlockScheduleResponse = {
+  slots: UnlockScheduleEntry[]
+  isDefault: boolean
+}
+
+// The schedule saved in the app wins; the CALORIE_UNLOCK_SCHEDULE env var is the default.
+export async function getUnlockSchedule(db: Database, defaultSchedule: string) {
+  try {
+    const [row] = await db
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, UNLOCK_SCHEDULE_SETTING_KEY))
+      .limit(1)
+
+    return row?.value ?? defaultSchedule
+  } catch (error) {
+    // Keep unlocks working if the API deploys before the app_settings migration runs.
+    if (isMissingTableError(error) || isMissingTableError(error instanceof Error ? error.cause : undefined)) {
+      return defaultSchedule
+    }
+
+    throw error
+  }
+}
+
+function isMissingTableError(error: unknown) {
+  return error instanceof Error && 'code' in error && error.code === '42P01'
+}
+
+export async function getUnlockScheduleResponse(
+  db: Database,
+  defaultSchedule: string
+): Promise<UnlockScheduleResponse> {
+  const schedule = await getUnlockSchedule(db, defaultSchedule)
+
+  return {
+    slots: parseUnlockSchedule(schedule).map(toScheduleEntry),
+    isDefault: schedule === defaultSchedule
+  }
+}
+
+// Throws on an invalid schedule, so nothing broken is ever stored.
+export async function saveUnlockSchedule(db: Database, entries: UnlockScheduleEntry[]) {
+  const schedule = entries.map(entry => `${entry.time}=${entry.fraction}`).join(',')
+  parseUnlockSchedule(schedule)
+
+  await db
+    .insert(appSettings)
+    .values({ key: UNLOCK_SCHEDULE_SETTING_KEY, value: schedule })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value: schedule } })
+}
+
+export async function resetUnlockSchedule(db: Database) {
+  await db.delete(appSettings).where(eq(appSettings.key, UNLOCK_SCHEDULE_SETTING_KEY))
+}
+
+function toScheduleEntry(slot: UnlockScheduleSlot): UnlockScheduleEntry {
+  return {
+    time: `${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')}`,
+    fraction: slot.fraction
+  }
 }
 
 export async function calculateUnlockStatus(options: {
@@ -93,7 +162,7 @@ export async function calculateUnlockStatus(options: {
   }
 }
 
-function parseUnlockSchedule(schedule: string): UnlockScheduleSlot[] {
+export function parseUnlockSchedule(schedule: string): UnlockScheduleSlot[] {
   const slots = schedule
     .split(',')
     .map(part => part.trim())
