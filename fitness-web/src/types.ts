@@ -66,10 +66,27 @@ export interface ConfigValue {
   amount: number
 }
 
-export interface TDEEResponse {
+export interface LegacyTDEE {
   amount: number
   lossIn2Weeks: number
   eatenPerDay: number
+}
+
+export interface TrendPoint {
+  date: string
+  weight: number
+}
+
+export interface TDEEResponse {
+  amount: number
+  amountMargin: number
+  lossIn2Weeks: number
+  eatenPerDay: number
+  scaleWeight: number | null
+  trendWeight: number | null
+  trendWeightMargin: number | null
+  trend: TrendPoint[]
+  legacy: LegacyTDEE
   goalWeight: number
   calorieDeficit: number
   calorieTarget: number | null

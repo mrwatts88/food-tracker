@@ -22,12 +22,34 @@ const props = defineProps<{
 const successColor = '#10b981'
 const warningColor = '#dc2626'
 const goalLineColor = 'rgba(245, 158, 11, 0.9)'
+const trendLineColor = 'rgba(229, 231, 235, 0.85)'
 
 const calorieStore = useCalorieStore()
 const weightStore = useWeightStore()
 
 const recentEntries = computed((): WeightEntry[] => {
   return [...weightStore.entries.slice(0, 28)].reverse()
+})
+
+const trendValues = computed(() => {
+  const trendByDate = new Map(calorieStore.trend.map((point) => [point.date, point.weight]))
+  return recentEntries.value.map((entry) => trendByDate.get(entry.createdAt) ?? null)
+})
+
+// Scale reading minus the filtered trend: the part of today's weight that is
+// water and food rather than tissue.
+const trendReadout = computed(() => {
+  const scale = calorieStore.scaleWeight
+  const trend = calorieStore.trendWeight
+  if (scale === null || trend === null) return null
+
+  const difference = scale - trend
+  const sign = difference >= 0 ? '+' : '−'
+  return {
+    scale: scale.toFixed(1),
+    trend: trend.toFixed(1),
+    water: `${sign}${Math.abs(difference).toFixed(1)}`
+  }
 })
 
 function formatDate(dateStr: string) {
@@ -44,10 +66,21 @@ const chartData = computed(() => ({
       data: recentEntries.value.map((e) => e.amount),
       borderColor: props.gaining ? warningColor : successColor,
       backgroundColor: props.gaining ? 'rgba(220, 38, 38, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-      borderWidth: 2,
+      borderWidth: 1.5,
       pointRadius: 3,
       pointBackgroundColor: props.gaining ? warningColor : successColor,
       fill: true,
+      tension: 0.3
+    },
+    {
+      label: 'Trend',
+      data: trendValues.value,
+      borderColor: trendLineColor,
+      borderWidth: 2.5,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      fill: false,
+      spanGaps: true,
       tension: 0.3
     },
     {
@@ -67,6 +100,9 @@ const chartData = computed(() => ({
 const chartOptions = computed(() => {
   const goalWeight = calorieStore.goalWeight
   const values = recentEntries.value.map((e) => e.amount)
+  for (const value of trendValues.value) {
+    if (value !== null) values.push(value)
+  }
   if (typeof goalWeight === 'number' && Number.isFinite(goalWeight)) {
     values.push(goalWeight)
   }
@@ -109,6 +145,9 @@ const chartOptions = computed(() => {
 <template>
   <div v-if="recentEntries.length > 1" class="weight-chart">
     <div class="chart-label">Weight — Last {{ recentEntries.length }} Entries</div>
+    <div v-if="trendReadout" class="trend-readout">
+      Scale {{ trendReadout.scale }} · Trend {{ trendReadout.trend }} · {{ trendReadout.water }} water
+    </div>
     <div class="chart-container">
       <Line :data="chartData" :options="chartOptions" />
     </div>
@@ -133,6 +172,15 @@ const chartOptions = computed(() => {
   font-weight: 600;
   text-align: center;
   margin-bottom: var(--spacing-sm);
+}
+
+.trend-readout {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-top: calc(var(--spacing-sm) * -0.5);
+  margin-bottom: var(--spacing-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .chart-container {

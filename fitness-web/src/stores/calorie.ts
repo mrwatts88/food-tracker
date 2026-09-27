@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { CalorieEntry, TDEEResponse, UnlockStatus } from '@/types'
+import type { CalorieEntry, LegacyTDEE, TDEEResponse, TrendPoint, UnlockStatus } from '@/types'
 import { calorieApi, tdeeApi } from '@/services/api'
 import { useEntryDividerStore } from '@/stores/entryDivider'
 
@@ -8,6 +8,12 @@ export const useCalorieStore = defineStore('calorie', () => {
   const entryDividerStore = useEntryDividerStore()
   const entries = ref<CalorieEntry[]>([])
   const tdee = ref<number>(0)
+  const tdeeMargin = ref<number | null>(null)
+  const scaleWeight = ref<number | null>(null)
+  const trendWeight = ref<number | null>(null)
+  const trendWeightMargin = ref<number | null>(null)
+  const trend = ref<TrendPoint[]>([])
+  const legacyTdee = ref<LegacyTDEE | null>(null)
   const lossIn2Weeks = ref<number>(0)
   const eatenPerDay = ref<number | null>(null)
   const goalWeight = ref<number | null>(null)
@@ -36,6 +42,12 @@ export const useCalorieStore = defineStore('calorie', () => {
 
   function applyTdeeData(data: TDEEResponse) {
     tdee.value = typeof data.amount === 'number' && Number.isFinite(data.amount) ? data.amount : 0
+    tdeeMargin.value = finiteOrNull(data.amountMargin)
+    scaleWeight.value = finiteOrNull(data.scaleWeight)
+    trendWeight.value = finiteOrNull(data.trendWeight)
+    trendWeightMargin.value = finiteOrNull(data.trendWeightMargin)
+    trend.value = Array.isArray(data.trend) ? data.trend : []
+    legacyTdee.value = data.legacy ?? null
     lossIn2Weeks.value =
       typeof data.lossIn2Weeks === 'number' && Number.isFinite(data.lossIn2Weeks)
         ? data.lossIn2Weeks
@@ -58,6 +70,10 @@ export const useCalorieStore = defineStore('calorie', () => {
       data.calorieTarget > 0
         ? data.calorieTarget
         : null
+  }
+
+  function finiteOrNull(value: number | null | undefined) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
   }
 
   function applyUnlockStatus(data: UnlockStatus) {
@@ -180,6 +196,12 @@ export const useCalorieStore = defineStore('calorie', () => {
   return {
     entries,
     tdee,
+    tdeeMargin,
+    scaleWeight,
+    trendWeight,
+    trendWeightMargin,
+    trend,
+    legacyTdee,
     lossIn2Weeks,
     eatenPerDay,
     goalWeight,

@@ -33,6 +33,20 @@ const averageBurnedDisplay = computed(() => {
   return formatCaloriesPerDay(calorieStore.tdee)
 })
 
+const tdeeMarginDisplay = computed(() => {
+  const value = toFiniteNumber(calorieStore.tdeeMargin)
+  return value === null || value === 0 ? null : `± ${formatCaloriesPerDay(value)}`
+})
+
+const legacyBurnedDisplay = computed(() => {
+  return `old ${formatCaloriesPerDay(calorieStore.legacyTdee?.amount)}`
+})
+
+const legacyLossDisplay = computed(() => {
+  const value = toFiniteNumber(calorieStore.legacyTdee?.lossIn2Weeks)
+  return `old ${value === null ? '-' : (-value).toFixed(1)}`
+})
+
 const isOvereating = computed(() => {
   const eaten = toFiniteNumber(calorieStore.eatenPerDay)
   const burned = toFiniteNumber(calorieStore.tdee)
@@ -133,6 +147,8 @@ const closestToGoalDisplay = computed(() => {
         <div class="stats-card-label">Burned / Day</div>
         <div class="stats-card-content">
           <div class="stats-card-value burned">{{ averageBurnedDisplay }}</div>
+          <div v-if="tdeeMarginDisplay" class="stats-card-detail">{{ tdeeMarginDisplay }}</div>
+          <div class="stats-card-detail stats-card-detail--legacy">{{ legacyBurnedDisplay }}</div>
         </div>
       </div>
       <div class="stats-card stats-card--goal">
@@ -147,6 +163,7 @@ const closestToGoalDisplay = computed(() => {
         <div class="stats-card-label">Change in 2wk</div>
         <div class="stats-card-content">
           <div class="stats-card-value" :class="isGaining ? 'warning' : 'success'">{{ lossIn2WeeksDisplay }}</div>
+          <div class="stats-card-detail stats-card-detail--legacy">{{ legacyLossDisplay }}</div>
         </div>
       </div>
     </div>
@@ -224,6 +241,11 @@ const closestToGoalDisplay = computed(() => {
   text-transform: uppercase;
   letter-spacing: 0.7px;
   font-weight: 600;
+}
+
+.stats-card-detail--legacy {
+  font-size: 11px;
+  opacity: 0.6;
 }
 
 .stats-card-value {

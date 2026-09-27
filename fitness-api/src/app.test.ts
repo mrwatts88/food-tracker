@@ -185,47 +185,25 @@ async function addSuccessfulDailyGoalEntries(createdAt: Date) {
   await addEntryAt('steps', createdAt, 8000)
 }
 
+// 90 days at 2500 cal/day while losing 1 lb/week, so the true TDEE is 3000.
 async function seedTdeeFixture() {
   await clearTrackingData()
 
-  for (let index = 1; index <= 28; index += 1) {
+  for (let index = 0; index < 90; index += 1) {
     const createdAt = new Date(now)
-    createdAt.setUTCDate(createdAt.getUTCDate() - index)
+    createdAt.setUTCDate(createdAt.getUTCDate() - index - 1)
 
     await db.insert(calorieEntries).values({
       amount: 2500,
       createdAt
     })
-  }
 
-  for (let index = 0; index <= 13; index += 1) {
+    const weighedAt = new Date(now)
+    weighedAt.setUTCDate(weighedAt.getUTCDate() - index)
+
     await db.insert(weightEntries).values({
-      createdAt: `2026-03-${String(17 - index).padStart(2, '0')}`,
-      amount: 198
-    })
-  }
-
-  const previousWindowDates = [
-    '2026-03-03',
-    '2026-03-02',
-    '2026-03-01',
-    '2026-02-28',
-    '2026-02-27',
-    '2026-02-26',
-    '2026-02-25',
-    '2026-02-24',
-    '2026-02-23',
-    '2026-02-22',
-    '2026-02-21',
-    '2026-02-20',
-    '2026-02-19',
-    '2026-02-18'
-  ]
-
-  for (const createdAt of previousWindowDates) {
-    await db.insert(weightEntries).values({
-      createdAt,
-      amount: 200
+      createdAt: weighedAt.toISOString().slice(0, 10),
+      amount: 198 + index / 7
     })
   }
 }
@@ -2141,27 +2119,37 @@ describe('fitness api', () => {
     expect(response.status).toBe(201)
   })
 
-  it('calculates TDEE from the rolling calorie and weight windows', async () => {
+  it('estimates TDEE and trend weight from the calorie and weight history', async () => {
     await seedTdeeFixture()
 
     const response = await app.request('/api/tdee')
     const body = (await response.json()) as {
       amount: number
+      amountMargin: number
       lossIn2Weeks: number
-      eatenPerDay: number
-      goalWeight: number
-      calorieDeficit: number
+      trendWeight: number
+      trend: { date: string; weight: number }[]
     }
 
     expect(response.status).toBe(200)
-    expect(body).toEqual({
+    expect(body).toMatchObject({
       amount: 3000,
-      lossIn2Weeks: 2,
       eatenPerDay: 2500,
+      scaleWeight: 198,
+      trendWeight: 198,
       goalWeight: 189,
       calorieDeficit: 250,
-      calorieTarget: null
+      calorieTarget: null,
+      legacy: {
+        amount: 3000,
+        lossIn2Weeks: 2,
+        eatenPerDay: 2500
+      }
     })
+    expect(body.lossIn2Weeks).toBeCloseTo(2, 1)
+    expect(body.amountMargin).toBeGreaterThan(0)
+    expect(body.trend).toHaveLength(28)
+    expect(body.trend.at(-1)).toEqual({ date: '2026-03-17', weight: 198 })
   })
 
   it('returns zeros for TDEE when weight history is missing', async () => {
@@ -2177,8 +2165,18 @@ describe('fitness api', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       amount: 0,
+      amountMargin: 0,
       lossIn2Weeks: 0,
       eatenPerDay: 0,
+      scaleWeight: null,
+      trendWeight: null,
+      trendWeightMargin: null,
+      trend: [],
+      legacy: {
+        amount: 0,
+        lossIn2Weeks: 0,
+        eatenPerDay: 0
+      },
       goalWeight: 189,
       calorieDeficit: 250,
       calorieTarget: null
