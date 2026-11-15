@@ -168,7 +168,9 @@ const closestToGoalDisplay = computed(() => {
       </div>
     </div>
     <div class="stats-chart">
-      <WeightChart :gaining="isGaining" />
+      <div class="stats-chart-inner">
+        <WeightChart :gaining="isGaining" />
+      </div>
     </div>
   </div>
 </template>
@@ -182,6 +184,8 @@ const closestToGoalDisplay = computed(() => {
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-lg);
   min-height: 0;
   overflow: hidden;
+  /* Lets the chart size itself against this panel's height (cqh below). */
+  container-type: size;
 }
 
 .stats-grid {
@@ -271,6 +275,15 @@ const closestToGoalDisplay = computed(() => {
 
 .stats-chart {
   width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* About half the panel, as before the cards were compacted, centred in the space left over. */
+.stats-chart-inner {
+  width: 100%;
+  height: min(100%, 46cqh);
   min-height: 0;
 }
 
