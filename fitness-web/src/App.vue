@@ -58,7 +58,8 @@ body {
   width: 100%;
   max-width: 428px;
   height: 100vh;
-  max-height: 844px;
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   flex-direction: column;
   background: var(--color-background);
@@ -74,6 +75,7 @@ body {
   .app-container {
     border-radius: var(--border-radius);
     height: calc(100vh - 32px);
+    max-height: 844px;
   }
 }
 

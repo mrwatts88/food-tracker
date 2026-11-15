@@ -137,6 +137,7 @@ onMounted(fetchValues)
   flex-direction: column;
   overflow: auto;
   padding: var(--spacing-md);
+  padding-top: calc(var(--spacing-md) + env(safe-area-inset-top, 0px));
   background: var(--color-background);
 }
 

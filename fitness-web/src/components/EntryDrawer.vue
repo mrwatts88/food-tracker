@@ -86,6 +86,7 @@ const drawerTitleColor = computed(() => {
   width: 100%;
   max-width: 428px;
   max-height: 70vh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--color-surface);
   border-radius: var(--border-radius) var(--border-radius) 0 0;
   display: flex;

@@ -41,18 +41,18 @@ function handleModeChange(mode: Mode) {
       Weight
     </button>
     <button
-      :class="['toggle-button', { active: appStore.mode === 'lifts' }]"
-      :style="{ '--active-color': 'var(--color-lifts-primary)' }"
-      @click="handleModeChange('lifts')"
-    >
-      Lifts
-    </button>
-    <button
       :class="['toggle-button', { active: appStore.mode === 'stats' }]"
       :style="{ '--active-color': 'var(--color-calorie-primary)' }"
       @click="handleModeChange('stats')"
     >
       Stats
+    </button>
+    <button
+      :class="['toggle-button', { active: appStore.mode === 'lifts' }]"
+      :style="{ '--active-color': 'var(--color-lifts-primary)' }"
+      @click="handleModeChange('lifts')"
+    >
+      Lifts
     </button>
   </div>
 </template>
@@ -62,6 +62,8 @@ function handleModeChange(mode: Mode) {
   display: flex;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
+  /* Carry the bar's colour up behind the status bar so there is no colour seam for iOS to blur. */
+  padding-top: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px));
   background: var(--color-surface);
 }
 
