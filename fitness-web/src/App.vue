@@ -57,6 +57,8 @@ body {
 #app {
   position: fixed;
   inset: 0;
+  /* Sits below the #top-edge bar defined in index.html. */
+  top: 12px;
   display: flex;
   justify-content: center;
   align-items: center;

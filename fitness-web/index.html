@@ -13,8 +13,22 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Fitness</title>
+    <style>
+      /* iOS 26 blurs the top of an installed web app unless a fixed, full-width, solid-colour
+         bar (taller than 10px) sits at the top edge from the first frame. Keep this inline. */
+      #top-edge {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 12px;
+        background: #374151;
+        z-index: 2000;
+      }
+    </style>
   </head>
   <body>
+    <div id="top-edge"></div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

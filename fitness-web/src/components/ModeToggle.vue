@@ -62,8 +62,8 @@ function handleModeChange(mode: Mode) {
   display: flex;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  /* Carry the bar's colour up behind the status bar so there is no colour seam for iOS to blur. */
-  padding-top: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px));
+  /* The #top-edge bar in index.html supplies the space above the buttons. */
+  padding-top: 0;
   background: var(--color-surface);
 }
 
