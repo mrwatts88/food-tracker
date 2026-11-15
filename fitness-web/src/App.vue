@@ -36,6 +36,14 @@ body {
   overflow: hidden;
 }
 
+/* iOS 26 sizes an installed web app's viewport one status bar short whenever the page is
+   shorter than the screen, which leaves a gap at the bottom. Keeping the document a full
+   screen tall avoids that; #app is pinned to the real viewport so nothing scrolls. */
+html {
+  min-height: 100vh;
+  min-height: 100lvh;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
     sans-serif;
@@ -47,7 +55,8 @@ body {
 }
 
 #app {
-  height: 100%;
+  position: fixed;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -57,9 +66,7 @@ body {
 .app-container {
   width: 100%;
   max-width: 428px;
-  height: 100vh;
-  height: 100dvh;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-background);
@@ -74,7 +81,7 @@ body {
 
   .app-container {
     border-radius: var(--border-radius);
-    height: calc(100vh - 32px);
+    height: 100%;
     max-height: 844px;
   }
 }
