@@ -52,14 +52,8 @@ const trendReadout = computed(() => {
   }
 })
 
-function formatDate(dateStr: string) {
-  const parts = dateStr.split('-')
-  const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
 const chartData = computed(() => ({
-  labels: recentEntries.value.map((e) => formatDate(e.createdAt)),
+  labels: recentEntries.value.map((e) => e.createdAt),
   datasets: [
     {
       label: 'Weight',
@@ -117,15 +111,7 @@ const chartOptions = computed(() => {
       legend: { display: false }
     },
     scales: {
-      x: {
-        ticks: {
-          color: '#9ca3af',
-          maxRotation: 45,
-          font: { size: 10 },
-          maxTicksLimit: 7
-        },
-        grid: { display: false }
-      },
+      x: { display: false },
       y: {
         min: Math.floor((min - padding) * 2) / 2,
         max: Math.ceil((max + padding) * 2) / 2,
@@ -158,7 +144,6 @@ const chartOptions = computed(() => {
 .weight-chart {
   width: 100%;
   height: 100%;
-  padding: 0 var(--spacing-md);
   display: flex;
   flex-direction: column;
   min-height: 0;
