@@ -2152,6 +2152,41 @@ describe('fitness api', () => {
     expect(body.trend.at(-1)).toEqual({ date: '2026-03-17', weight: 198 })
   })
 
+  it('falls back to the configured goal weight, then uses a saved one', async () => {
+    await db.delete(appSettings)
+
+    const initial = await app.request('/api/goal-weight')
+    expect(initial.status).toBe(200)
+    await expect(initial.json()).resolves.toEqual({ goalWeight: 189 })
+
+    const saved = await app.request('/api/goal-weight', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goalWeight: 191.5 })
+    })
+    expect(saved.status).toBe(200)
+    await expect(saved.json()).resolves.toEqual({ goalWeight: 191.5 })
+
+    const reread = await app.request('/api/goal-weight')
+    await expect(reread.json()).resolves.toEqual({ goalWeight: 191.5 })
+
+    const tdee = await app.request('/api/tdee')
+    await expect(tdee.json()).resolves.toMatchObject({ goalWeight: 191.5 })
+
+    await db.delete(appSettings)
+  })
+
+  it('rejects a goal weight that is not a positive number', async () => {
+    for (const goalWeight of [0, -5, 'heavy']) {
+      const response = await app.request('/api/goal-weight', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goalWeight })
+      })
+      expect(response.status).toBe(400)
+    }
+  })
+
   it('returns zeros for TDEE when weight history is missing', async () => {
     await db.delete(calorieEntries)
     await db.delete(proteinEntries)

@@ -80,6 +80,11 @@ export const voiceApi = {
 }
 
 // Weight API
+export const goalWeightApi = {
+  get: () => api.get<{ goalWeight: number }>('/goal-weight'),
+  save: (goalWeight: number) => api.put<{ goalWeight: number }>('/goal-weight', { goalWeight }),
+}
+
 export const weightApi = {
   getEntries: () => api.get<WeightEntry[]>('/weight'),
   addEntry: (amount: number) => api.post<WeightEntry>('/weight', { amount }),

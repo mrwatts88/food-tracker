@@ -37,6 +37,7 @@ import {
   getDailyGoalStreakStatus,
   syncDailyGoalStreak
 } from './lib/daily-goal-streak'
+import { getGoalWeight, saveGoalWeight } from './lib/goal-weight'
 import { DEFAULT_GOAL_CONFIG, getGoalConfig } from './lib/goals'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
@@ -69,6 +70,10 @@ const textParseSchema = z.object({
 
 const weightEntrySchema = z.object({
   amount: z.number().positive()
+})
+
+const goalWeightSchema = z.object({
+  goalWeight: z.number().positive().max(1000)
 })
 
 const configMetricSchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9_]+$/)
@@ -511,16 +516,29 @@ export function createApp(dependencies: AppDependencies = {}) {
     return c.body(null, 200)
   })
 
+  app.get('/goal-weight', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    return c.json({ goalWeight: await getGoalWeight(runtime.db, runtime.config.goalWeight) })
+  })
+
+  app.put('/goal-weight', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+    const input = goalWeightSchema.parse(await c.req.json())
+
+    return c.json({ goalWeight: await saveGoalWeight(runtime.db, input.goalWeight) })
+  })
+
   app.get('/tdee', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
-    const [stats, goalConfig] = await Promise.all([
+    const [stats, goalConfig, goalWeight] = await Promise.all([
       calculateTdeeStats(runtime.db, runtime.now(), runtime.config.appTimezone),
-      getGoalConfig(runtime.db)
+      getGoalConfig(runtime.db),
+      getGoalWeight(runtime.db, runtime.config.goalWeight)
     ])
 
     return c.json({
       ...stats,
-      goalWeight: runtime.config.goalWeight,
+      goalWeight,
       calorieDeficit: goalConfig.calorieDeficit,
       calorieTarget: goalConfig.calorieTarget
     })

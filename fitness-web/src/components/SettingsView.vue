@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import UnlockScheduleEditor from '@/components/UnlockScheduleEditor.vue'
-import { configApi } from '@/services/api'
+import { configApi, goalWeightApi } from '@/services/api'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
 import type { ConfigValue } from '@/types'
@@ -19,6 +19,9 @@ const nutritionStore = useNutritionStore()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const values = ref<EditableConfigValue[]>([])
+const goalWeight = ref<number | null>(null)
+const goalWeightDraft = ref('')
+const savingGoalWeight = ref(false)
 
 const sortedValues = computed(() =>
   [...values.value].sort((left, right) => left.metric.localeCompare(right.metric)),
@@ -39,12 +42,17 @@ async function fetchValues() {
   error.value = null
 
   try {
-    const response = await configApi.getValues()
+    const [response, goalWeightResponse] = await Promise.all([
+      configApi.getValues(),
+      goalWeightApi.get(),
+    ])
     values.value = response.data.map((value) => ({
       ...value,
       draftAmount: String(value.amount),
       saving: false,
     }))
+    goalWeight.value = goalWeightResponse.data.goalWeight
+    goalWeightDraft.value = goalWeightResponse.data.goalWeight.toFixed(1)
   } catch (fetchError) {
     console.error('Failed to fetch config values:', fetchError)
     error.value = 'Settings could not be loaded.'
@@ -81,6 +89,34 @@ async function saveValue(value: EditableConfigValue) {
   }
 }
 
+const goalWeightUnchanged = computed(
+  () => goalWeight.value !== null && Number(goalWeightDraft.value) === goalWeight.value,
+)
+
+async function saveGoalWeight() {
+  const amount = Number(goalWeightDraft.value)
+
+  if (String(goalWeightDraft.value).trim() === '' || !Number.isFinite(amount) || amount <= 0) {
+    error.value = 'Goal weight must be a positive number.'
+    return
+  }
+
+  savingGoalWeight.value = true
+  error.value = null
+
+  try {
+    const response = await goalWeightApi.save(amount)
+    goalWeight.value = response.data.goalWeight
+    goalWeightDraft.value = response.data.goalWeight.toFixed(1)
+    await calorieStore.refreshData({ setLoading: false })
+  } catch (saveError) {
+    console.error('Failed to update goal weight:', saveError)
+    error.value = 'Goal weight could not be saved.'
+  } finally {
+    savingGoalWeight.value = false
+  }
+}
+
 onMounted(fetchValues)
 </script>
 
@@ -103,6 +139,27 @@ onMounted(fetchValues)
 
     <div v-if="loading" class="settings-loading">Loading settings...</div>
     <form v-else class="settings-list" @submit.prevent>
+      <div class="settings-row">
+        <label for="config-goal-weight">
+          Goal weight
+          <small>lb</small>
+        </label>
+        <input
+          id="config-goal-weight"
+          v-model="goalWeightDraft"
+          type="number"
+          inputmode="decimal"
+          step="0.1"
+        />
+        <button
+          class="settings-save"
+          type="button"
+          :disabled="savingGoalWeight || goalWeightUnchanged"
+          @click="saveGoalWeight"
+        >
+          {{ savingGoalWeight ? 'Saving' : 'Save' }}
+        </button>
+      </div>
       <div v-for="value in sortedValues" :key="value.metric" class="settings-row">
         <label :for="`config-${value.metric}`">
           {{ labels[value.metric] ?? value.metric }}
