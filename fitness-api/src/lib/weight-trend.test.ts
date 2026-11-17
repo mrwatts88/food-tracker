@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon'
 import { describe, expect, it } from 'vitest'
 
-import { estimateWeightTrend, type DailyAmount } from './weight-trend'
+import { estimateScaleTrend, estimateWeightTrend, type DailyAmount } from './weight-trend'
 
 const today = '2026-06-30'
 
@@ -65,5 +65,42 @@ describe('estimateWeightTrend', () => {
     const latest = estimateWeightTrend(weights, withPartialDays, today).at(-1)
 
     expect(latest?.tdee).toBeCloseTo(2700, -2)
+  })
+})
+
+describe('estimateScaleTrend', () => {
+  it('returns nothing without weight history', () => {
+    expect(estimateScaleTrend([], today)).toEqual([])
+  })
+
+  it('stays centred on the weigh-ins during a steady loss', () => {
+    const { weights } = history({ days: 90, intake: 2200, lossPerWeek: 1.2 })
+    const points = estimateScaleTrend(weights, today)
+
+    expect(points.at(-1)?.weight).toBeCloseTo(200, 1)
+    expect(points.at(-15)?.weight).toBeCloseTo(202.4, 1)
+  })
+
+  it('moves down when today reads lower, and moves more the lower it reads', () => {
+    // Real history from 2026-11: the old calorie-driven trend rose on a
+    // 194.0 weigh-in because the day before was logged at 4,835 calories.
+    const recent = [197, 196.4, 196.4, 197.5, 195.5, 195.3, 195.9, 194.9, 194.9]
+    const weights = recent.map((amount, index) => ({ date: daysAgo(recent.length - index), amount }))
+    const trendWith = (amount: number) => estimateScaleTrend([...weights, { date: today, amount }], today)
+
+    const lower = trendWith(194)
+    const higher = trendWith(195.9)
+
+    expect(lower.at(-1)!.weight).toBeLessThan(lower.at(-2)!.weight)
+    expect(higher.at(-1)!.weight - lower.at(-1)!.weight).toBeGreaterThan(0.3)
+  })
+
+  it('produces a point for every day, including days without a weigh-in', () => {
+    const { weights } = history({ days: 30, intake: 2200, lossPerWeek: 1 })
+    const sparse = weights.filter((_, index) => index % 3 === 0)
+    const points = estimateScaleTrend(sparse, today)
+
+    expect(points).toHaveLength(30)
+    expect(points.at(-1)?.date).toBe(today)
   })
 })

@@ -3,7 +3,7 @@ import { and, gte, lte } from 'drizzle-orm'
 import type { Database } from '../db/client'
 import { calorieEntries, weightEntries } from '../db/schema'
 import { formatDate, getDateRange, getDateRangeStrings, getTodayBounds } from './time'
-import { defaultWeightTrendOptions, estimateWeightTrend, type DailyAmount } from './weight-trend'
+import { defaultWeightTrendOptions, estimateScaleTrend, estimateWeightTrend, type DailyAmount } from './weight-trend'
 
 // The filter converges within a few weeks, so older history adds nothing.
 const HISTORY_DAYS = 120
@@ -48,35 +48,26 @@ export async function calculateTdeeStats(db: Database, now: Date, timezone: stri
   const calories = sumByDate(calorieRows.map(row => ({ date: formatDate(row.createdAt, timezone), amount: row.amount })))
   const legacy = calculateLegacyTdeeStats(calories, weights, now, timezone)
   const eatenPerDay = averageLoggedIntake(calories, now, timezone)
+  // TDEE uses calories and weigh-ins together; everything weight-related the
+  // user sees (trend line, trend weight, 2-week change) uses weigh-ins only.
   const points = estimateWeightTrend(weights, calories, today)
   const latest = points[points.length - 1]
   const hasLoggedCalories = calories.some(entry => entry.amount >= defaultWeightTrendOptions.minLoggedCalories)
+  const hasTdee = latest !== undefined && hasLoggedCalories
 
-  if (!latest || !hasLoggedCalories) {
-    return {
-      amount: 0,
-      amountMargin: 0,
-      lossIn2Weeks: 0,
-      eatenPerDay,
-      scaleWeight: latestWeight(weights),
-      trendWeight: latest ? round(latest.weight, 1) : null,
-      trendWeightMargin: latest ? round(latest.weightMargin, 1) : null,
-      trend: [],
-      legacy
-    }
-  }
-
-  const twoWeeksAgo = points[points.length - 15]
+  const scaleTrend = estimateScaleTrend(weights, today)
+  const latestTrend = scaleTrend[scaleTrend.length - 1]
+  const trendTwoWeeksAgo = scaleTrend[scaleTrend.length - 15]
 
   return {
-    amount: Math.round(latest.tdee),
-    amountMargin: Math.round(latest.tdeeMargin),
-    lossIn2Weeks: twoWeeksAgo ? round(twoWeeksAgo.weight - latest.weight, 2) : 0,
+    amount: hasTdee ? Math.round(latest.tdee) : 0,
+    amountMargin: hasTdee ? Math.round(latest.tdeeMargin) : 0,
+    lossIn2Weeks: latestTrend && trendTwoWeeksAgo ? round(trendTwoWeeksAgo.weight - latestTrend.weight, 2) : 0,
     eatenPerDay,
     scaleWeight: latestWeight(weights),
-    trendWeight: round(latest.weight, 1),
-    trendWeightMargin: round(latest.weightMargin, 1),
-    trend: points.slice(-TREND_SERIES_DAYS).map(point => ({ date: point.date, weight: round(point.weight, 2) })),
+    trendWeight: latestTrend ? round(latestTrend.weight, 1) : null,
+    trendWeightMargin: latestTrend ? round(latestTrend.weightMargin, 1) : null,
+    trend: scaleTrend.slice(-TREND_SERIES_DAYS).map(point => ({ date: point.date, weight: round(point.weight, 2) })),
     legacy
   }
 }

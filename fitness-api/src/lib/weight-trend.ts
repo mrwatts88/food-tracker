@@ -1,7 +1,9 @@
 import { DateTime } from 'luxon'
 
-// Two-state Kalman filter over daily weigh-ins and calorie totals.
-// Hidden state: true (trend) weight in lb, and TDEE in cal/day.
+// Two-state Kalman filter over daily weigh-ins and calorie totals, used to
+// estimate TDEE. The trend line shown to the user comes from
+// estimateScaleTrend below, which uses weigh-ins only.
+// Hidden state: true weight in lb, and TDEE in cal/day.
 // Each day: weight[d+1] = weight[d] + (eaten[d] - tdee[d]) / 3500, tdee drifts slowly.
 // Each weigh-in is the true weight plus scale/water noise.
 
@@ -110,15 +112,7 @@ export function estimateWeightTrend(
     const measured = weightByDate.get(date)
 
     if (measured !== undefined) {
-      const innovation = measured - x[0]
-      const innovationVariance = p[0][0] + scaleVariance
-      const gain: Vector = [p[0][0] / innovationVariance, p[1][0] / innovationVariance]
-
-      x = [x[0] + gain[0] * innovation, x[1] + gain[1] * innovation]
-      p = [
-        [(1 - gain[0]) * p[0][0], (1 - gain[0]) * p[0][1]],
-        [p[1][0] - gain[1] * p[0][0], p[1][1] - gain[1] * p[0][1]]
-      ]
+      ;({ x, p } = applyWeighIn(x, p, measured, scaleVariance))
     }
 
     steps.push({ date, predicted, filtered: { x, p }, transition })
@@ -131,6 +125,103 @@ export function estimateWeightTrend(
     tdee: state[1],
     tdeeMargin: Math.sqrt(Math.max(0, covariance[1][1]))
   }))
+}
+
+// Scale-only trend: the same kind of filter, but its hidden state is weight
+// and its rate of change (lb/day), and it never looks at calories. Tracking
+// the rate keeps the line centred on the weigh-ins during a steady loss,
+// where a plain moving average would sit above them.
+export type ScaleTrendOptions = {
+  // Day-to-day scale noise (water, food in gut) around the true weight, lb.
+  scaleNoiseLb: number
+  // How far weight may move per day beyond the current rate, lb.
+  levelDriftPerDay: number
+  // How far the rate itself may change per day, lb/day.
+  rateDriftPerDay: number
+  // Uncertainty about the rate before any weigh-ins, lb/day.
+  initialRateNoise: number
+}
+
+export const defaultScaleTrendOptions: ScaleTrendOptions = {
+  scaleNoiseLb: 1,
+  levelDriftPerDay: 0.2,
+  rateDriftPerDay: 0.02,
+  initialRateNoise: 0.25
+}
+
+export type ScaleTrendPoint = {
+  date: string
+  weight: number
+  weightMargin: number
+}
+
+// Returns one smoothed point per day from the first weigh-in through `today`,
+// or an empty array when there is no weight history.
+export function estimateScaleTrend(
+  weights: DailyAmount[],
+  today: string,
+  options: ScaleTrendOptions = defaultScaleTrendOptions
+): ScaleTrendPoint[] {
+  const sortedWeights = [...weights].sort((a, b) => a.date.localeCompare(b.date))
+  const firstWeight = sortedWeights[0]
+  if (!firstWeight || firstWeight.date > today) {
+    return []
+  }
+
+  const weightByDate = new Map(sortedWeights.map(entry => [entry.date, entry.amount]))
+  const scaleVariance = options.scaleNoiseLb ** 2
+  const transition: Matrix = [
+    [1, 1],
+    [0, 1]
+  ]
+  const processNoise: Matrix = [
+    [options.levelDriftPerDay ** 2, 0],
+    [0, options.rateDriftPerDay ** 2]
+  ]
+
+  let x: Vector = [firstWeight.amount, 0]
+  let p: Matrix = [
+    [scaleVariance, 0],
+    [0, options.initialRateNoise ** 2]
+  ]
+  const steps: FilterStep[] = []
+
+  for (let date = firstWeight.date; date <= today; date = addDays(date, 1)) {
+    if (steps.length > 0) {
+      x = apply(transition, x)
+      p = addMatrix(multiply(multiply(transition, p), transpose(transition)), processNoise)
+    }
+
+    const predicted = { x, p }
+    const measured = weightByDate.get(date)
+
+    if (measured !== undefined) {
+      ;({ x, p } = applyWeighIn(x, p, measured, scaleVariance))
+    }
+
+    steps.push({ date, predicted, filtered: { x, p }, transition })
+  }
+
+  return smooth(steps).map(({ date, x: state, p: covariance }) => ({
+    date,
+    weight: state[0],
+    weightMargin: Math.sqrt(Math.max(0, covariance[0][0]))
+  }))
+}
+
+// Folds one weigh-in into a state whose first component is weight.
+function applyWeighIn(x: Vector, p: Matrix, measured: number, scaleVariance: number) {
+  const innovation = measured - x[0]
+  const innovationVariance = p[0][0] + scaleVariance
+  const gain: Vector = [p[0][0] / innovationVariance, p[1][0] / innovationVariance]
+
+  return {
+    x: [x[0] + gain[0] * innovation, x[1] + gain[1] * innovation] as Vector,
+    p: [
+      [(1 - gain[0]) * p[0][0], (1 - gain[0]) * p[0][1]],
+      [p[1][0] - gain[1] * p[0][0], p[1][1] - gain[1] * p[0][1]]
+    ] as Matrix
+  }
 }
 
 // Rauch-Tung-Striebel pass: lets later weigh-ins refine earlier days so the
