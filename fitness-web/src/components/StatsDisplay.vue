@@ -33,11 +33,6 @@ const averageBurnedDisplay = computed(() => {
   return formatCaloriesPerDay(calorieStore.tdee)
 })
 
-const tdeeMarginDisplay = computed(() => {
-  const value = toFiniteNumber(calorieStore.tdeeMargin)
-  return value === null || value === 0 ? null : `± ${formatCaloriesPerDay(value)}`
-})
-
 const isOvereating = computed(() => {
   const eaten = toFiniteNumber(calorieStore.eatenPerDay)
   const burned = toFiniteNumber(calorieStore.tdee)
@@ -138,7 +133,6 @@ const closestToGoalDisplay = computed(() => {
         <div class="stats-card-label">Burned / Day</div>
         <div class="stats-card-content">
           <div class="stats-card-value burned">{{ averageBurnedDisplay }}</div>
-          <div v-if="tdeeMarginDisplay" class="stats-card-detail">{{ tdeeMarginDisplay }}</div>
         </div>
       </div>
       <div class="stats-card stats-card--goal">
