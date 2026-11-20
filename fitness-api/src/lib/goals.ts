@@ -6,6 +6,7 @@ export type GoalConfig = {
   sugar: number
   caffeine: number
   carbs: number
+  sodium: number
   steps: number
   calorieDeficit: number
   calorieTarget: number | null
@@ -16,6 +17,7 @@ export const DEFAULT_GOAL_CONFIG: GoalConfig = {
   sugar: 80,
   caffeine: 280,
   carbs: 200,
+  sodium: 2300,
   steps: 7000,
   calorieDeficit: 250,
   calorieTarget: null
@@ -30,6 +32,7 @@ export async function getGoalConfig(db: Database): Promise<GoalConfig> {
       sugar: rows.find(goal => goal.metric === 'sugar')?.amount ?? DEFAULT_GOAL_CONFIG.sugar,
       caffeine: rows.find(goal => goal.metric === 'caffeine')?.amount ?? DEFAULT_GOAL_CONFIG.caffeine,
       carbs: rows.find(goal => goal.metric === 'carbs')?.amount ?? DEFAULT_GOAL_CONFIG.carbs,
+      sodium: rows.find(goal => goal.metric === 'sodium')?.amount ?? DEFAULT_GOAL_CONFIG.sodium,
       steps: rows.find(goal => goal.metric === 'steps')?.amount ?? DEFAULT_GOAL_CONFIG.steps,
       calorieDeficit:
         rows.find(goal => goal.metric === 'calorie_deficit')?.amount ?? DEFAULT_GOAL_CONFIG.calorieDeficit,

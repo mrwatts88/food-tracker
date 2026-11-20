@@ -46,7 +46,7 @@ const lastMacro = ref<NutritionMetric>('protein')
 let pendingPage: number | null = null
 
 // Metrics whose goal is a ceiling rather than a floor.
-const limitMacros: ReadonlySet<NutritionMetric> = new Set(['sugar', 'carbs'])
+const limitMacros: ReadonlySet<NutritionMetric> = new Set(['sugar', 'carbs', 'sodium'])
 
 function isHomeMacro(metric: EntryMetric): metric is NutritionMetric {
   return homeMacroMetrics.includes(metric as NutritionMetric)
@@ -532,7 +532,7 @@ function formatNumber(value: number) {
           </div>
         </section>
 
-        <!-- Page 2: protein, sugar, carbs. Tapping a row points the keypad at it. -->
+        <!-- Page 2: protein, sodium, carbs. Tapping a row points the keypad at it. -->
         <section
           class="summary-page"
           aria-label="Macros"

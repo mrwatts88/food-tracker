@@ -37,6 +37,7 @@ const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = [
   'protein',
   'sugar',
   'carbs',
+  'sodium',
   'caffeine',
 ]
 

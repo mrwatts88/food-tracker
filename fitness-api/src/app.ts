@@ -13,6 +13,7 @@ import {
   lifts,
   nutritionGoals,
   proteinEntries,
+  sodiumEntries,
   stepsEntries,
   sugarEntries,
   weightEntries
@@ -98,13 +99,14 @@ const unlockScheduleSchema = z.object({
     .max(24)
 })
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'steps'
+type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'steps'
 type NutritionAlertMetric = 'sugar' | 'caffeine'
 type NutritionEntryTable =
   | typeof proteinEntries
   | typeof sugarEntries
   | typeof caffeineEntries
   | typeof carbsEntries
+  | typeof sodiumEntries
   | typeof stepsEntries
 type AmountEntryTable = typeof calorieEntries | NutritionEntryTable
 
@@ -402,6 +404,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'sugar', sugarEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'caffeine', caffeineEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'carbs', carbsEntries)
+  registerNutritionEntryRoutes(app, dependencies, config, notifier, 'sodium', sodiumEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'steps', stepsEntries)
 
   app.get('/nutrition/goals', async c => {
@@ -606,14 +609,18 @@ function registerNutritionEntryRoutes(
       .returning()
 
     const createdEntry = assertFound(entry, `Failed to create ${path} entry`)
-    await recordDailyGoalEntry({
-      db: runtime.db,
-      metric: path,
-      amount: input.amount,
-      createdAt,
-      timezone: runtime.config.appTimezone,
-      fallbackGoal: runtime.config.calorieUnlockFallbackGoal
-    })
+
+    // Sodium is tracked and displayed but does not take part in the daily goal streak.
+    if (path !== 'sodium') {
+      await recordDailyGoalEntry({
+        db: runtime.db,
+        metric: path,
+        amount: input.amount,
+        createdAt,
+        timezone: runtime.config.appTimezone,
+        fallbackGoal: runtime.config.calorieUnlockFallbackGoal
+      })
+    }
 
     if (activeNotifier !== null && alertMetric !== null) {
       const afterTotal = beforeTotal + input.amount
@@ -718,7 +725,7 @@ function jsonError(message: string, status: number) {
 }
 
 function getNutritionAlertMetric(path: NutritionRoutePath): NutritionAlertMetric | null {
-  if (path === 'protein' || path === 'carbs' || path === 'steps') {
+  if (path === 'protein' || path === 'carbs' || path === 'sodium' || path === 'steps') {
     return null
   }
 
@@ -761,6 +768,7 @@ async function getConfigRows(db: Database) {
     ['sugar', DEFAULT_GOAL_CONFIG.sugar],
     ['caffeine', DEFAULT_GOAL_CONFIG.caffeine],
     ['carbs', DEFAULT_GOAL_CONFIG.carbs],
+    ['sodium', DEFAULT_GOAL_CONFIG.sodium],
     ['steps', DEFAULT_GOAL_CONFIG.steps],
     ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit],
     ['calorie_target', DEFAULT_GOAL_CONFIG.calorieTarget ?? 0]
@@ -784,6 +792,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     sugarResult,
     caffeineResult,
     carbsResult,
+    sodiumResult,
     stepsResult,
     dividerResult
   ] = await Promise.all([
@@ -808,6 +817,10 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
       .from(carbsEntries)
       .where(and(gte(carbsEntries.createdAt, today.startUtc), lte(carbsEntries.createdAt, now))),
     db
+      .select({ createdAt: max(sodiumEntries.createdAt) })
+      .from(sodiumEntries)
+      .where(and(gte(sodiumEntries.createdAt, today.startUtc), lte(sodiumEntries.createdAt, now))),
+    db
       .select({ createdAt: max(stepsEntries.createdAt) })
       .from(stepsEntries)
       .where(and(gte(stepsEntries.createdAt, today.startUtc), lte(stepsEntries.createdAt, now))),
@@ -823,6 +836,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     sugarResult[0]?.createdAt,
     caffeineResult[0]?.createdAt,
     carbsResult[0]?.createdAt,
+    sodiumResult[0]?.createdAt,
     stepsResult[0]?.createdAt,
     dividerResult[0]?.createdAt
   ].reduce<Date | null>((latest, current) => {

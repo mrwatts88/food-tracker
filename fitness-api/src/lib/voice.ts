@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import type { AppConfig } from '../config'
 
-export type VoiceMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs'
+export type VoiceMetric = 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium'
 export type VoiceItemKind = 'explicit_metric' | 'food_item'
 
 export type VoiceEstimate = {
@@ -38,7 +38,7 @@ type VoiceParserDependencies = {
   openai?: Pick<OpenAI, 'audio' | 'responses'>
 }
 
-const voiceMetricSchema = z.enum(['calorie', 'protein', 'sugar', 'caffeine', 'carbs'])
+const voiceMetricSchema = z.enum(['calorie', 'protein', 'sugar', 'caffeine', 'carbs', 'sodium'])
 
 const parsedVoiceItemSchema = z.object({
   kind: z.enum(['explicit_metric', 'food_item']),
@@ -112,7 +112,7 @@ export function createVoiceParser(
         {
           role: 'system',
           content:
-            'Extract nutrition tracking entries from the transcript. For direct metric statements, only populate the metric explicitly named. Never infer calories from protein, sugar, carbs, or caffeine statements. Only include calories when calories were explicitly spoken or when a food item is mentioned and you are estimating its nutrition. Food items may estimate calories, protein, sugar, carbs, and caffeine from general nutrition knowledge. Mixed utterances should preserve both explicit metrics and food-derived estimates. If something is unsupported or too ambiguous, omit it and add a warning. Amounts must be integers in these units: calorie in kcal, protein, sugar, and carbs in grams, caffeine in milligrams.'
+            'Extract nutrition tracking entries from the transcript. For direct metric statements, only populate the metric explicitly named. Never infer calories from protein, sugar, carbs, sodium, or caffeine statements. Only include calories when calories were explicitly spoken or when a food item is mentioned and you are estimating its nutrition. Food items may estimate calories, protein, sugar, carbs, sodium, and caffeine from general nutrition knowledge. Mixed utterances should preserve both explicit metrics and food-derived estimates. If something is unsupported or too ambiguous, omit it and add a warning. Amounts must be integers in these units: calorie in kcal, protein, sugar, and carbs in grams, caffeine and sodium in milligrams.'
         },
         {
           role: 'user',
@@ -164,7 +164,8 @@ export function createVoiceTotals(): VoiceTotals {
     protein: 0,
     sugar: 0,
     caffeine: 0,
-    carbs: 0
+    carbs: 0,
+    sodium: 0
   }
 }
 

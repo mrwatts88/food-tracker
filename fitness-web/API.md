@@ -53,6 +53,9 @@ Shared response/request types live in:
 - `GET /api/carbs`
 - `POST /api/carbs`
 - `DELETE /api/carbs/:id`
+- `GET /api/sodium`
+- `POST /api/sodium`
+- `DELETE /api/sodium/:id`
 - `GET /api/nutrition/goals`
 - `GET /api/daily-goals/status`
 - `GET /api/config`

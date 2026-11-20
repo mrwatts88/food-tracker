@@ -44,7 +44,7 @@ const canScale = computed(() => props.mode !== 'weight' && props.mode !== 'steps
 
 const scaleUnit = computed(() => {
   if (props.mode === 'calorie') return 'cal'
-  if (props.mode === 'caffeine') return 'mg'
+  if (props.mode === 'caffeine' || props.mode === 'sodium') return 'mg'
   return 'g'
 })
 

@@ -16,6 +16,7 @@ function createMetricEntryMap(): MetricEntryMap {
     sugar: [],
     caffeine: [],
     carbs: [],
+    sodium: [],
     steps: []
   }
 }
@@ -26,6 +27,7 @@ function createMetricFlagMap(): MetricFlagMap {
     sugar: false,
     caffeine: false,
     carbs: false,
+    sodium: false,
     steps: false
   }
 }
@@ -41,6 +43,7 @@ export const useNutritionStore = defineStore('nutrition', () => {
     sugar: 80,
     caffeine: 280,
     carbs: 200,
+    sodium: 2300,
     steps: 7000
   })
 
@@ -49,6 +52,7 @@ export const useNutritionStore = defineStore('nutrition', () => {
     sugar: entriesByMetric.sugar.reduce((sum, entry) => sum + entry.amount, 0),
     caffeine: entriesByMetric.caffeine.reduce((sum, entry) => sum + entry.amount, 0),
     carbs: entriesByMetric.carbs.reduce((sum, entry) => sum + entry.amount, 0),
+    sodium: entriesByMetric.sodium.reduce((sum, entry) => sum + entry.amount, 0),
     steps: entriesByMetric.steps.reduce((sum, entry) => sum + entry.amount, 0)
   }))
 
@@ -125,6 +129,7 @@ export const useNutritionStore = defineStore('nutrition', () => {
         sugar: goalsResult.data.sugar,
         caffeine: goalsResult.data.caffeine,
         carbs: goalsResult.data.carbs,
+        sodium: goalsResult.data.sodium,
         steps: goalsResult.data.steps
       })
     } else {

@@ -2,7 +2,7 @@
 // fitness — log fitness entries from any terminal.
 //
 //   fitness 30                    → 30 calories
-//   fitness protein 40            → 40g protein (also sugar, carbs, caffeine)
+//   fitness protein 40            → 40g protein (also sugar, carbs, sodium, caffeine)
 //   fitness ate a bagel and a coke→ LLM-estimated, logged across metrics
 //   fitness -n <anything>         → dry run, show the estimate without logging
 //
@@ -18,13 +18,14 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const DEFAULT_API_URL = 'https://food-tracker-weld-six.vercel.app/api'
-const METRICS = ['calorie', 'protein', 'sugar', 'carbs', 'caffeine']
-const ROUTES = { calorie: 'calories', protein: 'protein', sugar: 'sugar', carbs: 'carbs', caffeine: 'caffeine' }
+const METRICS = ['calorie', 'protein', 'sugar', 'carbs', 'sodium', 'caffeine']
+const ROUTES = { calorie: 'calories', protein: 'protein', sugar: 'sugar', carbs: 'carbs', sodium: 'sodium', caffeine: 'caffeine' }
 const FORMAT = {
   calorie: amount => `${amount} cal`,
   protein: amount => `${amount}g protein`,
   sugar: amount => `${amount}g sugar`,
   carbs: amount => `${amount}g carbs`,
+  sodium: amount => `${amount}mg sodium`,
   caffeine: amount => `${amount}mg caffeine`
 }
 
@@ -106,7 +107,7 @@ const ESTIMATE_SCHEMA = {
 }
 
 const ESTIMATE_RULES =
-  'Extract nutrition tracking entries from the text below. Only populate a metric that is explicitly named; never infer calories from a protein, sugar, carbs, or caffeine statement. For food and drink items, estimate all five metrics from general nutrition knowledge. Units: calorie in kcal, protein, sugar, and carbs in grams, caffeine in milligrams. Use 0 for anything you are not estimating. If something is too ambiguous to log, omit it and add a warning. Answer immediately from nutrition knowledge; do not deliberate. Warn only when genuinely ambiguous, and keep each warning under 12 words.'
+  'Extract nutrition tracking entries from the text below. Only populate a metric that is explicitly named; never infer calories from a protein, sugar, carbs, sodium, or caffeine statement. For food and drink items, estimate all six metrics from general nutrition knowledge. Units: calorie in kcal, protein, sugar, and carbs in grams, caffeine and sodium in milligrams. Use 0 for anything you are not estimating. If something is too ambiguous to log, omit it and add a warning. Answer immediately from nutrition knowledge; do not deliberate. Warn only when genuinely ambiguous, and keep each warning under 12 words.'
 
 // Local Claude Code, headless. Needs no OpenAI key — the estimating happens on this machine.
 function estimateWithClaude(text) {
@@ -218,7 +219,7 @@ if (words.length === 0) {
 }
 
 const apiUrl = loadApiUrl()
-const emptyTotals = { calorie: 0, protein: 0, sugar: 0, carbs: 0, caffeine: 0 }
+const emptyTotals = { calorie: 0, protein: 0, sugar: 0, carbs: 0, sodium: 0, caffeine: 0 }
 const direct = parseDirect(words)
 
 if (direct) {
