@@ -3,7 +3,10 @@
 // the phone's own keyboard never opens and covers the content.
 export type NumberPadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'back'
 
-withDefaults(defineProps<{ allowDecimal?: boolean }>(), { allowDecimal: true })
+withDefaults(defineProps<{ allowDecimal?: boolean; compact?: boolean }>(), {
+  allowDecimal: true,
+  compact: false,
+})
 
 const emit = defineEmits<{
   press: [key: NumberPadKey]
@@ -13,7 +16,7 @@ const digitKeys: NumberPadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 </script>
 
 <template>
-  <div class="number-pad">
+  <div class="number-pad" :class="{ 'is-compact': compact }">
     <button
       v-for="key in digitKeys"
       :key="key"
@@ -63,6 +66,15 @@ const digitKeys: NumberPadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
   transition: all 0.1s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.is-compact {
+  gap: 6px;
+}
+
+.is-compact .key-button {
+  min-height: 40px;
+  font-size: 20px;
 }
 
 .key-button:active {

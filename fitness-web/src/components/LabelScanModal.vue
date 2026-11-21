@@ -97,6 +97,7 @@ function goToAmount() {
     return
   }
 
+  activeField.value = null
   step.value = 'amount'
 }
 
@@ -104,28 +105,72 @@ function goBack() {
   step.value = 'confirm'
 }
 
-const MAX_AMOUNT_LENGTH = 6
+const MAX_ENTRY_LENGTH = 6
 
-function handlePadPress(key: NumberPadKey) {
-  const current = amountText.value
+type ConfirmField = LabelMetric | 'servingGrams'
+
+// The confirm-screen field the pad is editing. Tapping a field selects its
+// whole value: the next key replaces it rather than appending.
+const activeField = ref<ConfirmField | null>(null)
+const replaceOnType = ref(false)
+
+function selectField(field: ConfirmField) {
+  if (field !== 'servingGrams' && props.lockedMetrics.includes(field)) {
+    return
+  }
+
+  activeField.value = field
+  replaceOnType.value = true
+}
+
+function getFieldText(field: ConfirmField) {
+  return field === 'servingGrams' ? servingGramsText.value : perServingText[field]
+}
+
+function setFieldText(field: ConfirmField, text: string) {
+  if (field === 'servingGrams') {
+    servingGramsText.value = text
+  } else {
+    perServingText[field] = text
+  }
+}
+
+function applyKey(current: string, key: NumberPadKey, replace: boolean) {
+  const base = replace ? '' : current
 
   if (key === 'back') {
-    amountText.value = current.slice(0, -1)
-    return
+    return base.slice(0, -1)
   }
 
   if (key === '.') {
-    if (!current.includes('.')) {
-      amountText.value = current === '' ? '0.' : `${current}.`
+    if (base.includes('.')) {
+      return base
     }
+
+    return base === '' ? '0.' : `${base}.`
+  }
+
+  if (base.length >= MAX_ENTRY_LENGTH) {
+    return base
+  }
+
+  return base === '0' ? key : base + key
+}
+
+function handlePadPress(key: NumberPadKey) {
+  if (step.value === 'amount') {
+    amountText.value = applyKey(amountText.value, key, false)
     return
   }
 
-  if (current.length >= MAX_AMOUNT_LENGTH) {
+  const field = activeField.value
+
+  if (field === null) {
     return
   }
 
-  amountText.value = current === '0' ? key : current + key
+  setFieldText(field, applyKey(getFieldText(field), key, replaceOnType.value))
+  replaceOnType.value = false
 }
 
 function submit() {
@@ -134,14 +179,6 @@ function submit() {
   }
 
   emit('submit', totals.value)
-}
-
-// Every tap on a confirm-screen field selects its whole value, so typing
-// replaces it instead of editing around wherever the cursor landed. Deferred
-// a tick because iOS places the caret after focus/click handlers run.
-function selectAll(event: Event) {
-  const input = event.target as HTMLInputElement
-  window.setTimeout(() => input.setSelectionRange(0, input.value.length))
 }
 
 function formatEditable(value: number | null) {
@@ -188,28 +225,37 @@ function formatTotal(metric: LabelMetric, value: number) {
           </ul>
         </section>
 
-        <label v-if="logsByGrams" class="field-row">
+        <button
+          v-if="logsByGrams"
+          type="button"
+          class="field-row"
+          :class="{ 'is-active': activeField === 'servingGrams' }"
+          @click="selectField('servingGrams')"
+        >
           <span class="field-name">Serving size</span>
           <span class="field-input-wrap">
-            <input
-              v-model="servingGramsText"
+            <span
               class="field-input"
-              type="text"
-              inputmode="decimal"
-              placeholder="—"
-              @focus="selectAll"
-              @click="selectAll"
-            />
+              :class="{ 'is-selected': activeField === 'servingGrams' && replaceOnType }"
+            >
+              <span class="field-value">{{ servingGramsText || '—' }}</span>
+            </span>
             <span class="field-unit">g</span>
           </span>
-        </label>
+        </button>
 
         <p class="section-label">Per serving</p>
-        <label
+        <button
           v-for="row in metricRows"
           :key="row.metric"
+          type="button"
           class="field-row"
-          :class="{ 'is-locked': lockedMetrics.includes(row.metric) }"
+          :class="{
+            'is-locked': lockedMetrics.includes(row.metric),
+            'is-active': activeField === row.metric,
+          }"
+          :disabled="lockedMetrics.includes(row.metric)"
+          @click="selectField(row.metric)"
         >
           <span class="field-name">
             <span class="field-dot" :style="{ background: row.color }"></span>
@@ -217,19 +263,19 @@ function formatTotal(metric: LabelMetric, value: number) {
             <span v-if="lockedMetrics.includes(row.metric)" class="locked-note">locked</span>
           </span>
           <span class="field-input-wrap">
-            <input
-              v-model="perServingText[row.metric]"
+            <span
               class="field-input"
-              type="text"
-              inputmode="decimal"
-              placeholder="—"
-              :disabled="lockedMetrics.includes(row.metric)"
-              @focus="selectAll"
-              @click="selectAll"
-            />
+              :class="{ 'is-selected': activeField === row.metric && replaceOnType }"
+            >
+              <span class="field-value">{{ perServingText[row.metric] || '—' }}</span>
+            </span>
             <span class="field-unit">{{ row.unit }}</span>
           </span>
-        </label>
+        </button>
+      </div>
+
+      <div v-if="step === 'confirm'" class="pad-wrap">
+        <NumberPad compact @press="handlePadPress" />
       </div>
 
       <div v-if="step === 'amount'" class="amount-step">
@@ -301,7 +347,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .modal-actions {
-  padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  padding: 10px 12px 28px;
 }
 
 .modal-header {
@@ -358,17 +404,30 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .field-row {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 5px 6px 5px 12px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid transparent;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.field-row.is-active {
+  border-color: rgba(125, 211, 252, 0.45);
+  background: rgba(14, 165, 233, 0.1);
 }
 
 .field-row.is-locked {
   opacity: 0.5;
+  cursor: default;
 }
 
 .field-name {
@@ -399,7 +458,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 
 .field-input {
   width: 84px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
@@ -407,6 +466,20 @@ function formatTotal(metric: LabelMetric, value: number) {
   font-size: 16px;
   font-weight: 700;
   text-align: right;
+}
+
+.field-row.is-active .field-input {
+  border-color: rgba(125, 211, 252, 0.6);
+}
+
+/* Mimics selected text: the next key replaces the whole value. */
+.field-input.is-selected .field-value {
+  border-radius: 3px;
+  background: rgba(14, 165, 233, 0.45);
+}
+
+.pad-wrap {
+  padding: 4px 12px 2px;
 }
 
 .field-unit {
