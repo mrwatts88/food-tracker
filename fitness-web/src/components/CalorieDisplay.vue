@@ -156,8 +156,7 @@ const insightTiles = computed(() =>
       status: insight.status,
       statusLabel: insightStatusLabels[insight.status],
       heroValue,
-      // The asterisk points at the footnote when the target could not fully close the gap.
-      heroCaption: insight.capped ? `${heroCaption}*` : heroCaption,
+      heroCaption,
       over,
       done,
       progress,
@@ -169,13 +168,11 @@ const insightTiles = computed(() =>
         average === null
           ? `No days logged yet`
           : `Avg ${formatNumber(average)}${goal === null ? '' : ` · goal ${formatNumber(goal)}`}`,
-      capped: insight.capped,
       active: props.activeMetric === metric,
     }
   }),
 )
 const insightsLoaded = computed(() => nutritionStore.insights !== null)
-const anyInsightCapped = computed(() => insightTiles.value.some((tile) => tile.capped))
 const insightsDays = computed(() => nutritionStore.insights?.daysLogged ?? 0)
 const insightsWindow = computed(() => nutritionStore.insights?.windowDays ?? 7)
 
@@ -629,9 +626,6 @@ function formatNumber(value: number) {
                 </div>
               </button>
             </div>
-            <div v-if="anyInsightCapped" class="insights-footnote">
-              * Too far off to fully catch up in one day
-            </div>
           </div>
         </section>
 
@@ -1039,10 +1033,18 @@ function formatNumber(value: number) {
   transform: scale(1.25);
 }
 
+/* The insights and macro pages drop the card frame; their tiles are the boxes. */
+.summary-card.insights-card,
+.summary-card.macros-card {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
 /* Insights page */
 .insights-card {
   justify-content: flex-start;
-  gap: 8px;
+  gap: 6px;
 }
 
 .insights-header {
@@ -1051,7 +1053,7 @@ function formatNumber(value: number) {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 2px 22px 0 2px; /* keep clear of the page dots */
+  padding: 0 22px 0 2px; /* keep clear of the page dots */
 }
 
 .insights-title {
@@ -1108,8 +1110,8 @@ function formatNumber(value: number) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 5px;
+  padding: 7px 10px;
 }
 
 .insight-tile-header {
@@ -1163,7 +1165,7 @@ function formatNumber(value: number) {
 }
 
 .insight-tile-value {
-  font-size: 1.7rem;
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1187,7 +1189,7 @@ function formatNumber(value: number) {
 
 .insight-tile-bar {
   flex-shrink: 0;
-  height: 5px;
+  height: 4px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-text-secondary) 20%, transparent);
   overflow: hidden;
@@ -1207,9 +1209,9 @@ function formatNumber(value: number) {
 .insight-tile-lines {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
   font-size: 0.7rem;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -1220,26 +1222,29 @@ function formatNumber(value: number) {
   text-overflow: ellipsis;
 }
 
-@container (max-height: 116px) {
+/* On shorter tiles the progress bar goes first, then the text lines. */
+@container (max-height: 104px) {
+  .insight-tile-bar {
+    display: none;
+  }
+}
+
+@container (max-height: 86px) {
   .insight-tile-today {
     display: none;
   }
 }
 
-@container (max-height: 90px) {
+@container (max-height: 70px) {
   .insight-tile-lines {
     display: none;
   }
 }
 
-@container (max-height: 76px) {
+@container (max-height: 70px) {
   .insight-tile-body {
     gap: 4px;
     padding: 6px 8px;
-  }
-
-  .insight-tile-bar {
-    display: none;
   }
 
   .insight-tile-value {
@@ -1281,18 +1286,6 @@ function formatNumber(value: number) {
   .insights-subtitle {
     font-size: 0.7rem;
   }
-
-  .insights-footnote {
-    display: none;
-  }
-}
-
-.insights-footnote {
-  width: 100%;
-  padding-right: 22px;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  text-align: center;
 }
 
 /* Macros page */
