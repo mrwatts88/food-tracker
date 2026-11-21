@@ -67,6 +67,13 @@ function handleModeChange(mode: Mode) {
   background: var(--color-surface);
 }
 
+/* No #top-edge bar on wide screens (see index.html), so the tabs need their own top space. */
+@media (min-width: 431px) {
+  .mode-toggle {
+    padding-top: var(--spacing-sm);
+  }
+}
+
 .toggle-button {
   flex: 1;
   padding: 12px;
