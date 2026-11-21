@@ -803,6 +803,60 @@ describe('fitness api', () => {
       })
   })
 
+  it('returns nutrition insights from the prior seven logged days', async () => {
+    await clearTrackingData()
+    // Two logged days before today (Chicago): Mar 15 and Mar 16. Mar 14 has
+    // protein but no calories, so it does not count as a logged day.
+    await addEntryAt('calories', new Date('2026-03-16T17:00:00.000Z'), 1800)
+    await addEntryAt('protein', new Date('2026-03-16T17:00:00.000Z'), 80)
+    await addEntryAt('sodium', new Date('2026-03-16T17:00:00.000Z'), 3000)
+    await addEntryAt('calories', new Date('2026-03-15T17:00:00.000Z'), 1800)
+    await addEntryAt('protein', new Date('2026-03-15T17:00:00.000Z'), 60)
+    await addEntryAt('sodium', new Date('2026-03-15T17:00:00.000Z'), 2000)
+    await addEntryAt('protein', new Date('2026-03-14T17:00:00.000Z'), 500)
+    // Today and older than the window are both ignored.
+    await addEntryAt('calories', new Date('2026-03-17T15:00:00.000Z'), 500)
+    await addEntryAt('protein', new Date('2026-03-17T15:00:00.000Z'), 999)
+    await addEntryAt('calories', new Date('2026-03-09T17:00:00.000Z'), 1800)
+    await addEntryAt('protein', new Date('2026-03-09T17:00:00.000Z'), 999)
+
+    const response = await app.request('/api/nutrition/insights')
+    const body = (await response.json()) as {
+      windowDays: number
+      daysLogged: number
+      metrics: Array<{ metric: string; average: number | null; todayTarget: number | null; status: string }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.windowDays).toBe(7)
+    expect(body.daysLogged).toBe(2)
+    expect(body.metrics.map(metric => metric.metric)).toEqual([
+      'sodium',
+      'carbs',
+      'fiber',
+      'sugar',
+      'protein',
+      'caffeine'
+    ])
+    expect(body.metrics.find(metric => metric.metric === 'protein')).toMatchObject({
+      average: 70,
+      todayTarget: 160,
+      status: 'more'
+    })
+    expect(body.metrics.find(metric => metric.metric === 'sodium')).toMatchObject({
+      average: 2500,
+      todayTarget: 1900,
+      status: 'less'
+    })
+    expect(body.metrics.find(metric => metric.metric === 'carbs')).toMatchObject({
+      average: 0,
+      todayTarget: 200,
+      status: 'on-track'
+    })
+
+    await clearTrackingData()
+  })
+
   it('returns editable config values with defaults', async () => {
     await db.delete(nutritionGoals)
     await db.insert(nutritionGoals).values({ metric: 'protein', amount: 130 })

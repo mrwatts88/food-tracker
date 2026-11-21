@@ -41,6 +41,7 @@ import {
 } from './lib/daily-goal-streak'
 import { getGoalWeight, saveGoalWeight } from './lib/goal-weight'
 import { DEFAULT_GOAL_CONFIG, getGoalConfig } from './lib/goals'
+import { getNutritionInsights } from './lib/nutrition-insights'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
 import { createLabelParser, supportedLabelImageTypes, type LabelParser } from './lib/label'
@@ -456,6 +457,19 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.get('/nutrition/goals', async c => {
     const runtime = getRuntime(dependencies, config, notifier)
     return c.json(await getGoalConfig(runtime.db))
+  })
+
+  app.get('/nutrition/insights', async c => {
+    const runtime = getRuntime(dependencies, config, notifier)
+
+    return c.json(
+      await getNutritionInsights({
+        db: runtime.db,
+        now: runtime.now(),
+        timezone: runtime.config.appTimezone,
+        goals: await getGoalConfig(runtime.db)
+      })
+    )
   })
 
   app.get('/config', async c => {

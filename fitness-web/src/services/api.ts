@@ -9,6 +9,7 @@ import type {
   Lift,
   LiftUpdate,
   NutritionEntry,
+  NutritionInsights,
   NutritionMetric,
   TDEEResponse,
   UnlockSchedule,
@@ -57,6 +58,7 @@ const nutritionEndpoints: Record<NutritionMetric, string> = {
 export const nutritionApi = {
   getEntries: (metric: NutritionMetric) => api.get<NutritionEntry[]>(nutritionEndpoints[metric]),
   getGoals: () => api.get<GoalConfigResponse>('/nutrition/goals'),
+  getInsights: () => api.get<NutritionInsights>('/nutrition/insights'),
   addEntry: (metric: NutritionMetric, amount: number) =>
     api.post<NutritionEntry>(nutritionEndpoints[metric], { amount }),
   deleteEntry: (metric: NutritionMetric, id: number) =>

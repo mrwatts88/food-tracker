@@ -60,6 +60,7 @@ Shared response/request types live in:
 - `POST /api/fiber`
 - `DELETE /api/fiber/:id`
 - `GET /api/nutrition/goals`
+- `GET /api/nutrition/insights`
 - `GET /api/daily-goals/status`
 - `GET /api/config`
 - `PUT /api/config/:metric`
@@ -67,6 +68,23 @@ Shared response/request types live in:
 - `POST /api/weight`
 - `DELETE /api/weight/:date`
 - `GET /api/tdee`
+
+## Nutrition Insights
+
+`GET /api/nutrition/insights` compares each macro's average over the prior 7 days with its goal and says what today needs. Only days with a calorie entry count, the same rule the daily goal streak uses. Today's live totals are left to the client.
+
+Response fields:
+
+- `windowDays`: always 7
+- `daysLogged`: logged days in the window
+- `metrics[]`, in label order (sodium, carbs, fiber, sugar, protein, caffeine):
+  - `metric`
+  - `kind`: `floor` (protein, fiber: reach at least the goal) or `ceiling` (stay under it)
+  - `goal`: `null` when the goal is 0
+  - `average`: rounded daily average, `null` with no logged days
+  - `todayTarget`: today's amount that puts tomorrow's 7-day average on the goal; the goal itself when already on track. Clamped to 0 for ceilings and to twice the goal for floors.
+  - `capped`: the target was clamped and cannot fully close the gap today
+  - `status`: `more`, `less`, `on-track`, `no-goal` or `no-data`
 
 ## Calorie Unlock Status
 

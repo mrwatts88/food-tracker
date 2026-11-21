@@ -1,11 +1,11 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { nutritionApi } from '@/services/api'
 import { isNutritionMetric, nutritionMetrics } from '@/lib/nutrition'
 import { useAppStore } from '@/stores/app'
 import { useEntryDividerStore } from '@/stores/entryDivider'
-import type { NutritionEntry, NutritionGoals, NutritionMetric } from '@/types'
+import type { NutritionEntry, NutritionGoals, NutritionInsights, NutritionMetric } from '@/types'
 
 type MetricEntryMap = Record<NutritionMetric, NutritionEntry[]>
 type MetricFlagMap = Record<NutritionMetric, boolean>
@@ -49,6 +49,9 @@ export const useNutritionStore = defineStore('nutrition', () => {
     fiber: 30,
     steps: 7000
   })
+  // Today's targets from the prior week's averages. They only depend on past
+  // days and goals, so they refresh with the goals rather than on every entry.
+  const insights = ref<NutritionInsights | null>(null)
 
   const totalsByMetric = computed<Record<NutritionMetric, number>>(() => ({
     protein: entriesByMetric.protein.reduce((sum, entry) => sum + entry.amount, 0),
@@ -109,14 +112,15 @@ export const useNutritionStore = defineStore('nutrition', () => {
       }
     }
 
-    const [results, goalsResult] = await Promise.all([
+    const [results, goalsResult, insightsResult] = await Promise.all([
       Promise.allSettled(
         nutritionMetrics.map(async metric => ({
           metric,
           response: await nutritionApi.getEntries(metric)
         }))
       ),
-      nutritionApi.getGoals().catch(error => ({ error }))
+      nutritionApi.getGoals().catch(error => ({ error })),
+      nutritionApi.getInsights().catch(error => ({ error }))
     ])
 
     for (const result of results) {
@@ -139,6 +143,12 @@ export const useNutritionStore = defineStore('nutrition', () => {
       })
     } else {
       console.error('Failed to refresh nutrition goals:', goalsResult.error)
+    }
+
+    if ('data' in insightsResult) {
+      insights.value = insightsResult.data
+    } else {
+      console.error('Failed to refresh nutrition insights:', insightsResult.error)
     }
 
     if (setLoading) {
@@ -181,6 +191,7 @@ export const useNutritionStore = defineStore('nutrition', () => {
     loadingByMetric,
     submittingByMetric,
     goalsByMetric,
+    insights,
     totalsByMetric,
     currentMetric,
     currentEntries,

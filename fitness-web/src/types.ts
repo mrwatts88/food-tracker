@@ -61,6 +61,28 @@ export interface GoalConfigResponse extends NutritionGoals {
   calorieTarget: number | null
 }
 
+export type InsightMetric = Exclude<NutritionMetric, 'steps'>
+export type InsightStatus = 'more' | 'less' | 'on-track' | 'no-goal' | 'no-data'
+
+export interface NutritionInsight {
+  metric: InsightMetric
+  // A floor is a minimum to reach (protein, fiber); a ceiling is a maximum to stay under.
+  kind: 'floor' | 'ceiling'
+  goal: number | null
+  average: number | null
+  // What to eat today so that tomorrow's 7-day average lands on the goal.
+  todayTarget: number | null
+  // True when the target was clamped and cannot fully close the gap in one day.
+  capped: boolean
+  status: InsightStatus
+}
+
+export interface NutritionInsights {
+  windowDays: number
+  daysLogged: number
+  metrics: NutritionInsight[]
+}
+
 export interface ConfigValue {
   metric: string
   amount: number

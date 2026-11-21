@@ -12,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useNutritionStore } from '@/stores/nutrition'
 import { useWeightStore } from '@/stores/weight'
-import type { EntryMetric, NutritionMetric, TrackMetric } from '@/types'
+import type { EntryMetric, InsightStatus, NutritionMetric, TrackMetric } from '@/types'
 
 const props = defineProps<{
   activeMetric: EntryMetric
@@ -34,12 +34,15 @@ let intervalId: number | null = null
 
 const isWeightMode = computed(() => props.activeMetric === 'weight')
 
-// The calorie card is a vertical pager: page 0 is the calorie summary and each
-// page after it holds one group of macros from homeMacroPages. Native
-// scroll-snap does the swiping; this component only tracks which page is
-// showing and keeps the keypad's metric in step with it.
-const PAGE_CALORIES = 0
-const LAST_PAGE = homeMacroPages.length
+// The calorie card is a vertical pager: page 0 is the insights grid, page 1 is
+// the calorie summary (where it opens), and each page after that holds one
+// group of macros from homeMacroPages. Native scroll-snap does the swiping; this
+// component only tracks which page is showing and keeps the keypad's metric in
+// step with it.
+const PAGE_INSIGHTS = 0
+const PAGE_CALORIES = 1
+const FIRST_MACRO_PAGE = 2
+const LAST_PAGE = FIRST_MACRO_PAGE + homeMacroPages.length - 1
 const pagerElement = ref<HTMLElement | null>(null)
 const currentPage = ref(PAGE_CALORIES)
 // The macro each macro page last pointed the keypad at, so paging back to it
@@ -56,13 +59,13 @@ function isHomeMacro(metric: EntryMetric): metric is NutritionMetric {
   return homeMacroMetrics.includes(metric as NutritionMetric)
 }
 
-// Pager page for a home macro (1 for the first macro page).
+// Pager page for a home macro.
 function pageOfMacro(metric: NutritionMetric) {
-  return homeMacroPages.findIndex((metrics) => metrics.includes(metric)) + 1
+  return homeMacroPages.findIndex((metrics) => metrics.includes(metric)) + FIRST_MACRO_PAGE
 }
 
 function rememberMacro(metric: NutritionMetric) {
-  lastMacroByPage.value[pageOfMacro(metric) - 1] = metric
+  lastMacroByPage.value[pageOfMacro(metric) - FIRST_MACRO_PAGE] = metric
 }
 
 const macroPages = computed(() =>
@@ -72,7 +75,7 @@ const macroPages = computed(() =>
       : lastMacroByPage.value[index]!
 
     return {
-      page: index + 1,
+      page: index + FIRST_MACRO_PAGE,
       label: metrics.map((metric) => nutritionMetricLabels[metric]).join(', '),
       accent: nutritionMetricColorVars[selected],
       rows: metrics.map(macroRow),
@@ -104,6 +107,77 @@ function macroRow(metric: NutritionMetric) {
     submitting: nutritionStore.submittingByMetric[metric],
   }
 }
+
+const insightStatusLabels: Record<InsightStatus, string> = {
+  more: 'Eat more',
+  less: 'Ease off',
+  'on-track': 'On track',
+  'no-goal': 'No goal',
+  'no-data': 'No history',
+}
+
+// One tile per macro: today's target from the server (which only depends on
+// past days) against today's live total, so tiles update as entries land.
+const insightTiles = computed(() =>
+  (nutritionStore.insights?.metrics ?? []).map((insight) => {
+    const { metric, kind, goal, average, todayTarget } = insight
+    const unit = nutritionMetricUnits[metric]
+    const today = nutritionStore.totalsByMetric[metric]
+    const left = todayTarget === null ? null : todayTarget - today
+    const over = kind === 'ceiling' && left !== null && left < 0
+    const done = kind === 'floor' && left !== null && left <= 0
+
+    let heroValue = formatNumber(today)
+    let heroCaption = `${unit} today`
+
+    if (left !== null) {
+      if (done) {
+        heroValue = 'Done'
+        heroCaption = "today's target hit"
+      } else if (over) {
+        heroValue = formatNumber(-left)
+        heroCaption = `${unit} over`
+      } else {
+        heroValue = formatNumber(left)
+        heroCaption = kind === 'floor' ? `${unit} to go` : `${unit} left`
+      }
+    }
+
+    let progress = 0
+
+    if (todayTarget !== null) {
+      progress = todayTarget > 0 ? Math.min(1, today / todayTarget) : today > 0 ? 1 : 0
+    }
+
+    return {
+      metric,
+      label: nutritionMetricLabels[metric],
+      accent: nutritionMetricColorVars[metric],
+      status: insight.status,
+      statusLabel: insightStatusLabels[insight.status],
+      heroValue,
+      // The asterisk points at the footnote when the target could not fully close the gap.
+      heroCaption: insight.capped ? `${heroCaption}*` : heroCaption,
+      over,
+      done,
+      progress,
+      todayLine:
+        todayTarget === null
+          ? null
+          : `${formatNumber(today)} / ${formatNumber(todayTarget)} ${unit}`,
+      averageLine:
+        average === null
+          ? `No days logged yet`
+          : `Avg ${formatNumber(average)}${goal === null ? '' : ` · goal ${formatNumber(goal)}`}`,
+      capped: insight.capped,
+      active: props.activeMetric === metric,
+    }
+  }),
+)
+const insightsLoaded = computed(() => nutritionStore.insights !== null)
+const anyInsightCapped = computed(() => insightTiles.value.some((tile) => tile.capped))
+const insightsDays = computed(() => nutritionStore.insights?.daysLogged ?? 0)
+const insightsWindow = computed(() => nutritionStore.insights?.windowDays ?? 7)
 
 const pageForMetric = computed(() =>
   isHomeMacro(props.activeMetric) ? pageOfMacro(props.activeMetric) : PAGE_CALORIES,
@@ -260,7 +334,10 @@ watch(
       rememberMacro(metric)
     }
 
-    if (pageForMetric.value !== currentPage.value) {
+    // Tapping an insight tile points the keypad at that macro without paging away.
+    const staysOnInsights = currentPage.value === PAGE_INSIGHTS
+
+    if (pageForMetric.value !== currentPage.value && !staysOnInsights) {
       currentPage.value = pageForMetric.value
       scrollToPage(currentPage.value, 'smooth')
     }
@@ -337,14 +414,17 @@ function handlePagerScroll() {
     pendingPage = null
   }
 
-  const page = Math.min(LAST_PAGE, Math.max(PAGE_CALORIES, Math.round(element.scrollTop / stride)))
+  const page = Math.min(LAST_PAGE, Math.max(PAGE_INSIGHTS, Math.round(element.scrollTop / stride)))
 
   if (page === currentPage.value) {
     return
   }
 
   currentPage.value = page
-  emit('select-metric', page === PAGE_CALORIES ? 'calorie' : lastMacroByPage.value[page - 1]!)
+  emit(
+    'select-metric',
+    page < FIRST_MACRO_PAGE ? 'calorie' : lastMacroByPage.value[page - FIRST_MACRO_PAGE]!,
+  )
 }
 
 function handlePagerUserInput() {
@@ -366,7 +446,7 @@ function handleKeyDown(event: KeyboardEvent) {
     scrollToPage(Math.min(LAST_PAGE, currentPage.value + 1), 'smooth')
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
-    scrollToPage(Math.max(PAGE_CALORIES, currentPage.value - 1), 'smooth')
+    scrollToPage(Math.max(PAGE_INSIGHTS, currentPage.value - 1), 'smooth')
   }
 }
 
@@ -466,7 +546,7 @@ function formatNumber(value: number) {
       </template>
     </div>
 
-    <!-- Calorie mode: a vertical pager. Swipe up for the macro pages, down to come back. -->
+    <!-- Calorie mode: a vertical pager. Insights sit above the calorie card, macro pages below it. -->
     <template v-else>
       <div
         ref="pagerElement"
@@ -475,7 +555,87 @@ function formatNumber(value: number) {
         @touchstart.passive="handlePagerUserInput"
         @wheel.passive="handlePagerUserInput"
       >
-        <!-- Page 1: available now (unlock-gated), next unlock countdown, and the day's totals -->
+        <!-- Insights: what each macro needs today, from the prior week's average against its goal -->
+        <section
+          class="summary-page"
+          aria-label="Insights"
+          :aria-hidden="currentPage !== PAGE_INSIGHTS"
+        >
+          <div
+            class="summary-card insights-card"
+            :style="{ '--summary-accent': 'var(--color-calorie-primary)' }"
+          >
+            <div class="insights-header">
+              <span class="insights-title">Today's plan</span>
+              <span class="insights-subtitle">
+                vs. last {{ insightsWindow }} days
+                <template v-if="insightsLoaded && insightsDays < insightsWindow">
+                  ({{ insightsDays }} logged)
+                </template>
+              </span>
+            </div>
+            <div
+              v-if="!insightsLoaded"
+              class="loading-indicator loading-indicator--center"
+              role="status"
+              aria-label="Loading insights"
+            >
+              <span
+                class="loading-spinner"
+                :style="{ '--spinner-color': 'var(--color-calorie-primary)' }"
+              ></span>
+            </div>
+            <div v-else class="insights-grid">
+              <button
+                v-for="tile in insightTiles"
+                :key="tile.metric"
+                class="insight-tile"
+                :class="[`insight-tile--${tile.status}`, { 'insight-tile--active': tile.active }]"
+                type="button"
+                :aria-pressed="tile.active"
+                :aria-label="`${tile.label}: ${tile.statusLabel}, ${tile.heroValue} ${tile.heroCaption}. Log ${tile.label}`"
+                :style="{ '--insight-accent': tile.accent }"
+                @click="selectMacro(tile.metric)"
+              >
+                <div class="insight-tile-body">
+                  <div class="insight-tile-header">
+                    <span class="insight-tile-label">{{ tile.label }}</span>
+                    <span class="insight-chip">{{ tile.statusLabel }}</span>
+                  </div>
+                  <div class="insight-tile-hero">
+                    <span
+                      class="insight-tile-value"
+                      :class="{
+                        'insight-tile-value--over': tile.over,
+                        'insight-tile-value--done': tile.done,
+                      }"
+                      >{{ tile.heroValue }}</span
+                    >
+                    <span class="insight-tile-caption">{{ tile.heroCaption }}</span>
+                  </div>
+                  <div class="insight-tile-bar">
+                    <div
+                      class="insight-tile-fill"
+                      :class="{ 'insight-tile-fill--over': tile.over }"
+                      :style="{ width: `${Math.round(tile.progress * 100)}%` }"
+                    ></div>
+                  </div>
+                  <div class="insight-tile-lines">
+                    <span v-if="tile.todayLine" class="insight-tile-today">
+                      Today {{ tile.todayLine }}
+                    </span>
+                    <span>{{ tile.averageLine }}</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+            <div v-if="anyInsightCapped" class="insights-footnote">
+              * Too far off to fully catch up in one day
+            </div>
+          </div>
+        </section>
+
+        <!-- Calories: available now (unlock-gated), next unlock countdown, and the day's totals -->
         <section
           class="summary-page"
           aria-label="Calories"
@@ -637,6 +797,15 @@ function formatNumber(value: number) {
       </div>
 
       <div class="summary-dots" role="tablist" aria-label="Summary pages">
+        <button
+          class="summary-dot"
+          :class="{ 'summary-dot--active': currentPage === PAGE_INSIGHTS }"
+          type="button"
+          role="tab"
+          :aria-selected="currentPage === PAGE_INSIGHTS"
+          aria-label="Insights"
+          @click="scrollToPage(PAGE_INSIGHTS, 'smooth')"
+        ></button>
         <button
           class="summary-dot"
           :class="{ 'summary-dot--active': currentPage === PAGE_CALORIES }"
@@ -805,7 +974,7 @@ function formatNumber(value: number) {
   color: var(--color-text-secondary);
 }
 
-/* Pager: page 1 is the calorie card, the pages after it are the macros */
+/* Pager: insights, then the calorie card, then the macro pages */
 .summary-pager {
   flex: 1;
   min-height: 0;
@@ -868,6 +1037,262 @@ function formatNumber(value: number) {
 .summary-dot--active::before {
   background: var(--color-text);
   transform: scale(1.25);
+}
+
+/* Insights page */
+.insights-card {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.insights-header {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 22px 0 2px; /* keep clear of the page dots */
+}
+
+.insights-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.insights-subtitle {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.insights-grid {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-right: 22px; /* keep clear of the page dots */
+}
+
+/* Each tile is a size container so it can drop secondary lines on short screens. */
+.insight-tile {
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--border-radius);
+  border: 1px solid color-mix(in srgb, var(--insight-accent) 30%, transparent);
+  background: var(--color-background);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.insight-tile--active {
+  border-color: var(--insight-accent);
+  background: color-mix(in srgb, var(--insight-accent) 18%, var(--color-background));
+}
+
+.insight-tile-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.insight-tile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.insight-tile-label {
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--insight-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-chip {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-secondary) 16%, transparent);
+}
+
+.insight-tile--on-track .insight-chip {
+  color: #6ee7b7;
+  background: color-mix(in srgb, #10b981 22%, transparent);
+}
+
+.insight-tile--more .insight-chip,
+.insight-tile--less .insight-chip {
+  color: #fcd34d;
+  background: color-mix(in srgb, #f59e0b 20%, transparent);
+}
+
+.insight-tile-hero {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.insight-tile-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.insight-tile-value--over {
+  color: #fcd34d;
+}
+
+.insight-tile-value--done {
+  color: var(--insight-accent);
+}
+
+.insight-tile-caption {
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-tile-bar {
+  flex-shrink: 0;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-secondary) 20%, transparent);
+  overflow: hidden;
+}
+
+.insight-tile-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--insight-accent);
+  transition: width 0.3s ease;
+}
+
+.insight-tile-fill--over {
+  background: #fcd34d;
+}
+
+.insight-tile-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.insight-tile-lines span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container (max-height: 116px) {
+  .insight-tile-today {
+    display: none;
+  }
+}
+
+@container (max-height: 90px) {
+  .insight-tile-lines {
+    display: none;
+  }
+}
+
+@container (max-height: 76px) {
+  .insight-tile-body {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+
+  .insight-tile-bar {
+    display: none;
+  }
+
+  .insight-tile-value {
+    font-size: 1.25rem;
+  }
+
+  .insight-chip {
+    padding: 1px 5px;
+    font-size: 0.6rem;
+  }
+}
+
+@container (max-height: 60px) {
+  .insight-tile-body {
+    gap: 2px;
+    padding: 4px 8px;
+  }
+
+  .insight-tile-label {
+    font-size: 0.65rem;
+  }
+
+  .insight-tile-value {
+    font-size: 1.05rem;
+  }
+
+  .insight-tile-caption {
+    font-size: 0.65rem;
+  }
+}
+
+/* Short cards (small phones): the grid needs every pixel. */
+@container (max-height: 300px) {
+  .insights-card {
+    gap: 6px;
+  }
+
+  .insights-title,
+  .insights-subtitle {
+    font-size: 0.7rem;
+  }
+
+  .insights-footnote {
+    display: none;
+  }
+}
+
+.insights-footnote {
+  width: 100%;
+  padding-right: 22px;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 /* Macros page */
