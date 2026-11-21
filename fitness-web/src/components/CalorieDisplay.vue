@@ -990,6 +990,8 @@ function formatNumber(value: number) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Every page stops short of the page dots so their right edges line up. */
+  padding-right: 22px;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -997,7 +999,7 @@ function formatNumber(value: number) {
 .summary-dots {
   position: absolute;
   top: 50%;
-  right: calc(var(--spacing-md) + 6px);
+  right: 4px;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
@@ -1053,7 +1055,7 @@ function formatNumber(value: number) {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 22px 0 2px; /* keep clear of the page dots */
+  padding: 0 2px;
 }
 
 .insights-title {
@@ -1078,7 +1080,6 @@ function formatNumber(value: number) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  padding-right: 22px; /* keep clear of the page dots */
 }
 
 /* Each tile is a size container so it can drop secondary lines on short screens. */
@@ -1302,7 +1303,6 @@ function formatNumber(value: number) {
   flex-direction: column;
   justify-content: center;
   gap: clamp(6px, 3cqh, 16px);
-  padding-right: 22px; /* keep clear of the page dots */
 }
 
 .macro-row {
