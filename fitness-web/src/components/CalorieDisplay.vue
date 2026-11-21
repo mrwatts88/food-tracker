@@ -441,6 +441,16 @@ function formatCountdown(milliseconds: number) {
 function formatNumber(value: number) {
   return value.toLocaleString()
 }
+
+// Macro rows are tight next to the status pill, so thousands read as 1.8K.
+const compactFormatter = new Intl.NumberFormat(undefined, {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+function formatCompact(value: number) {
+  return Math.abs(value) < 1000 ? formatNumber(value) : compactFormatter.format(value)
+}
 </script>
 
 <template>
@@ -630,9 +640,9 @@ function formatNumber(value: number) {
                         'macro-row-value--met': row.met,
                       }"
                     >
-                      <strong>{{ formatNumber(row.total) }}</strong>
+                      <strong>{{ formatCompact(row.total) }}</strong>
                       <span class="macro-row-goal">
-                        / {{ row.goal === null ? '--' : formatNumber(row.goal) }} {{ row.unit }}
+                        / {{ row.goal === null ? '--' : formatCompact(row.goal) }} {{ row.unit }}
                       </span>
                     </span>
                   </div>
@@ -979,9 +989,8 @@ function formatNumber(value: number) {
 .macro-row-title {
   min-width: 0;
   display: flex;
-  flex-wrap: wrap; /* the pill drops under the label when the numbers are wide */
   align-items: center;
-  gap: 4px 8px;
+  gap: 8px;
 }
 
 .macro-chip {
@@ -1005,6 +1014,10 @@ function formatNumber(value: number) {
 }
 
 .macro-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1px;
