@@ -173,8 +173,6 @@ const insightTiles = computed(() =>
   }),
 )
 const insightsLoaded = computed(() => nutritionStore.insights !== null)
-const insightsDays = computed(() => nutritionStore.insights?.daysLogged ?? 0)
-const insightsWindow = computed(() => nutritionStore.insights?.windowDays ?? 7)
 
 const pageForMetric = computed(() =>
   isHomeMacro(props.activeMetric) ? pageOfMacro(props.activeMetric) : PAGE_CALORIES,
@@ -562,15 +560,6 @@ function formatNumber(value: number) {
             class="summary-card insights-card"
             :style="{ '--summary-accent': 'var(--color-calorie-primary)' }"
           >
-            <div class="insights-header">
-              <span class="insights-title">Today's plan</span>
-              <span class="insights-subtitle">
-                vs. last {{ insightsWindow }} days
-                <template v-if="insightsLoaded && insightsDays < insightsWindow">
-                  ({{ insightsDays }} logged)
-                </template>
-              </span>
-            </div>
             <div
               v-if="!insightsLoaded"
               class="loading-indicator loading-indicator--center"
@@ -1046,30 +1035,6 @@ function formatNumber(value: number) {
 /* Insights page */
 .insights-card {
   justify-content: flex-start;
-  gap: 6px;
-}
-
-.insights-header {
-  width: 100%;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 2px;
-}
-
-.insights-title {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.insights-subtitle {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  text-align: right;
 }
 
 .insights-grid {
@@ -1168,7 +1133,7 @@ function formatNumber(value: number) {
 .insight-tile-value {
   font-size: 1.5rem;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1212,7 +1177,7 @@ function formatNumber(value: number) {
   flex-direction: column;
   gap: 0;
   font-size: 0.7rem;
-  line-height: 1.25;
+  line-height: 1.45;
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -1274,18 +1239,6 @@ function formatNumber(value: number) {
 
   .insight-tile-caption {
     font-size: 0.65rem;
-  }
-}
-
-/* Short cards (small phones): the grid needs every pixel. */
-@container (max-height: 300px) {
-  .insights-card {
-    gap: 6px;
-  }
-
-  .insights-title,
-  .insights-subtitle {
-    font-size: 0.7rem;
   }
 }
 
