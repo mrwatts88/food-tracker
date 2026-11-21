@@ -15,6 +15,7 @@ import type {
   DailyGoalStreakStatus,
   EntryMetric,
   TrackMetric,
+  LabelMetric,
   LabelParseResult,
   VoiceMetric,
   VoiceParsePreview,
@@ -421,16 +422,20 @@ function closeVoicePreview() {
 // Posts each nonzero total to its metric's endpoint, skipping locked tracks.
 // Returns false when nothing was sent. Throws if any request fails; the stores
 // are refreshed either way so the UI matches what was stored.
-async function logNutritionTotals(totals: Record<VoiceMetric, number>) {
+async function logNutritionTotals(totals: Partial<Record<VoiceMetric, number>>) {
   const requests: Array<Promise<unknown>> = []
 
-  if (totals.calorie > 0 && !isTrackLocked('calorie')) {
-    requests.push(calorieApi.addEntry(totals.calorie))
+  const calories = totals.calorie ?? 0
+
+  if (calories > 0 && !isTrackLocked('calorie')) {
+    requests.push(calorieApi.addEntry(calories))
   }
 
   for (const metric of voiceEntryMetrics) {
-    if (totals[metric] > 0 && !isTrackLocked(metric)) {
-      requests.push(nutritionApi.addEntry(metric, totals[metric]))
+    const amount = totals[metric] ?? 0
+
+    if (amount > 0 && !isTrackLocked(metric)) {
+      requests.push(nutritionApi.addEntry(metric, amount))
     }
   }
 
@@ -514,7 +519,7 @@ function closeLabelResult() {
   labelResult.value = null
 }
 
-async function submitLabelTotals(totals: Record<VoiceMetric, number>) {
+async function submitLabelTotals(totals: Record<LabelMetric, number>) {
   if (savingLabel.value) {
     return
   }

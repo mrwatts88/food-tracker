@@ -622,8 +622,7 @@ describe('fitness api', () => {
       protein: null,
       sugar: null,
       carbs: null,
-      sodium: null,
-      caffeine: null
+      sodium: null
     }
 
     it('returns per-serving values and converts the serving mass to grams', async () => {

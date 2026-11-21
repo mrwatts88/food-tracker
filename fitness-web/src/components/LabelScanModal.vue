@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 
-import type { LabelParseResult, VoiceMetric } from '@/types'
+import type { LabelMetric, LabelParseResult, VoiceMetric } from '@/types'
 
 interface Props {
   result: LabelParseResult
@@ -15,16 +15,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   cancel: []
-  submit: [totals: Record<VoiceMetric, number>]
+  submit: [totals: Record<LabelMetric, number>]
 }>()
 
-const metricRows: Array<{ metric: VoiceMetric; label: string; unit: string; color: string }> = [
+const metricRows: Array<{ metric: LabelMetric; label: string; unit: string; color: string }> = [
   { metric: 'calorie', label: 'Calories', unit: 'kcal', color: 'var(--color-calorie-primary)' },
   { metric: 'carbs', label: 'Carbs', unit: 'g', color: 'var(--color-carbs-primary)' },
   { metric: 'sodium', label: 'Sodium', unit: 'mg', color: 'var(--color-sodium-primary)' },
   { metric: 'protein', label: 'Protein', unit: 'g', color: 'var(--color-protein-primary)' },
   { metric: 'sugar', label: 'Sugar', unit: 'g', color: 'var(--color-sugar-primary)' },
-  { metric: 'caffeine', label: 'Caffeine', unit: 'mg', color: 'var(--color-caffeine-primary)' },
 ]
 
 const step = ref<'confirm' | 'amount'>('confirm')
@@ -33,10 +32,10 @@ const amountText = ref('')
 
 // Editable copies of the parsed values, as strings so an empty field means
 // "not on the label / don't log".
-const perServingText = reactive<Record<VoiceMetric, string>>(
+const perServingText = reactive<Record<LabelMetric, string>>(
   Object.fromEntries(
     metricRows.map(({ metric }) => [metric, formatEditable(props.result.perServing[metric])]),
-  ) as Record<VoiceMetric, string>,
+  ) as Record<LabelMetric, string>,
 )
 const servingGramsText = ref(formatEditable(props.result.servingGrams))
 
@@ -46,7 +45,7 @@ const servingGrams = computed(() => parsePositive(servingGramsText.value))
 const perServing = computed(() =>
   Object.fromEntries(
     metricRows.map(({ metric }) => [metric, parseNonNegative(perServingText[metric])]),
-  ) as Record<VoiceMetric, number | null>,
+  ) as Record<LabelMetric, number | null>,
 )
 
 const loggableRows = computed(() =>
@@ -82,7 +81,7 @@ const totals = computed(() => {
       const loggable = !props.lockedMetrics.includes(metric) && value !== null
       return [metric, loggable ? Math.round(value * factor) : 0]
     }),
-  ) as Record<VoiceMetric, number>
+  ) as Record<LabelMetric, number>
 })
 
 const canSubmit = computed(
@@ -137,7 +136,7 @@ function parsePositive(text: string) {
   return value !== null && value > 0 ? value : null
 }
 
-function formatTotal(metric: VoiceMetric, value: number) {
+function formatTotal(metric: LabelMetric, value: number) {
   const row = metricRows.find(candidate => candidate.metric === metric)
   return `${value.toLocaleString()} ${row?.unit ?? ''}`
 }

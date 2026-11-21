@@ -167,12 +167,14 @@ export interface VoiceParsePreview {
   warnings: string[]
 }
 
+export type LabelMetric = Exclude<VoiceMetric, 'caffeine'>
+
 export interface LabelParseResult {
   productName: string | null
   servingSizeText: string | null
   // Grams per serving when the label gives the serving as a weight; null means
   // log by number of servings instead.
   servingGrams: number | null
-  perServing: Record<VoiceMetric, number | null>
+  perServing: Record<LabelMetric, number | null>
   warnings: string[]
 }
