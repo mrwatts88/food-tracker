@@ -577,6 +577,9 @@ function formatTotal(metric: LabelMetric, value: number) {
   .modal-content {
     max-height: calc(100dvh - 8px);
     border-radius: 16px 16px 0 0;
+    /* Edge-to-edge sheet: side and bottom borders would run into the phone's rounded
+       screen corners and get clipped, so only the top edge is outlined. */
+    border-width: 1px 0 0;
   }
 }
 </style>
