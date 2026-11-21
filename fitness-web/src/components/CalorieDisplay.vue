@@ -979,8 +979,9 @@ function formatNumber(value: number) {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* Every page stops short of the page dots so their right edges line up. */
-  padding-right: 22px;
+  /* Every page stops short of the page dots so their right edges line up, with
+     the same gap before the dots as the screen edge leaves on the left. */
+  padding-right: 18px;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
