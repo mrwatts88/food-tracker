@@ -225,57 +225,56 @@ function formatTotal(metric: LabelMetric, value: number) {
           </ul>
         </section>
 
-        <button
-          v-if="logsByGrams"
-          type="button"
-          class="field-row"
-          :class="{ 'is-active': activeField === 'servingGrams' }"
-          @click="selectField('servingGrams')"
-        >
-          <span class="field-name">Serving size</span>
-          <span class="field-input-wrap">
-            <span
-              class="field-input"
-              :class="{ 'is-selected': activeField === 'servingGrams' && replaceOnType }"
-            >
-              <span class="field-value">{{ servingGramsText || '—' }}</span>
+        <div class="fields-grid">
+          <button
+            v-if="logsByGrams"
+            type="button"
+            class="field-cell"
+            :class="{ 'is-active': activeField === 'servingGrams' }"
+            @click="selectField('servingGrams')"
+          >
+            <span class="field-name">Serving size</span>
+            <span class="field-input">
+              <span
+                class="field-value"
+                :class="{ 'is-selected': activeField === 'servingGrams' && replaceOnType }"
+                >{{ servingGramsText || '—' }}</span
+              >
+              <span class="field-unit">g</span>
             </span>
-            <span class="field-unit">g</span>
-          </span>
-        </button>
+          </button>
 
-        <p class="section-label">Per serving</p>
-        <button
-          v-for="row in metricRows"
-          :key="row.metric"
-          type="button"
-          class="field-row"
-          :class="{
-            'is-locked': lockedMetrics.includes(row.metric),
-            'is-active': activeField === row.metric,
-          }"
-          :disabled="lockedMetrics.includes(row.metric)"
-          @click="selectField(row.metric)"
-        >
-          <span class="field-name">
-            <span class="field-dot" :style="{ background: row.color }"></span>
-            {{ row.label }}
-            <span v-if="lockedMetrics.includes(row.metric)" class="locked-note">locked</span>
-          </span>
-          <span class="field-input-wrap">
-            <span
-              class="field-input"
-              :class="{ 'is-selected': activeField === row.metric && replaceOnType }"
-            >
-              <span class="field-value">{{ perServingText[row.metric] || '—' }}</span>
+          <button
+            v-for="row in metricRows"
+            :key="row.metric"
+            type="button"
+            class="field-cell"
+            :class="{
+              'is-locked': lockedMetrics.includes(row.metric),
+              'is-active': activeField === row.metric,
+            }"
+            :disabled="lockedMetrics.includes(row.metric)"
+            @click="selectField(row.metric)"
+          >
+            <span class="field-name">
+              <span class="field-dot" :style="{ background: row.color }"></span>
+              {{ row.label }}
+              <span v-if="lockedMetrics.includes(row.metric)" class="locked-note">locked</span>
             </span>
-            <span class="field-unit">{{ row.unit }}</span>
-          </span>
-        </button>
+            <span class="field-input">
+              <span
+                class="field-value"
+                :class="{ 'is-selected': activeField === row.metric && replaceOnType }"
+                >{{ perServingText[row.metric] || '—' }}</span
+              >
+              <span class="field-unit">{{ row.unit }}</span>
+            </span>
+          </button>
+        </div>
       </div>
 
       <div v-if="step === 'confirm'" class="pad-wrap">
-        <NumberPad compact @press="handlePadPress" />
+        <NumberPad @press="handlePadPress" />
       </div>
 
       <div v-if="step === 'amount'" class="amount-step">
@@ -380,14 +379,6 @@ function formatTotal(metric: LabelMetric, value: number) {
   gap: 6px;
 }
 
-.section-label {
-  margin-top: 6px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
 .warning-panel {
   padding: 12px 14px;
   border-radius: 14px;
@@ -403,14 +394,18 @@ function formatTotal(metric: LabelMetric, value: number) {
   font-size: 14px;
 }
 
-.field-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 6px 4px 12px;
-  border: 1px solid transparent;
+.fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.field-cell {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--color-text);
@@ -420,7 +415,7 @@ function formatTotal(metric: LabelMetric, value: number) {
   -webkit-tap-highlight-color: transparent;
 }
 
-.field-row.is-locked {
+.field-cell.is-locked {
   opacity: 0.5;
   cursor: default;
 }
@@ -428,8 +423,9 @@ function formatTotal(metric: LabelMetric, value: number) {
 .field-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
 }
 
 .field-dot {
@@ -439,37 +435,35 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .locked-note {
-  font-size: 11px;
+  margin-left: auto;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-secondary);
-}
-
-.field-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .field-input {
-  width: 84px;
-  padding: 5px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
-  color: var(--color-text);
-  font-size: 16px;
-  font-weight: 700;
-  text-align: right;
 }
 
-.field-row.is-active .field-input {
+.field-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.field-cell.is-active .field-input {
   border-color: #38bdf8;
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
 }
 
 /* Mimics selected text: the next key replaces the whole value. */
-.field-input.is-selected .field-value {
+.field-value.is-selected {
   border-radius: 3px;
   background: rgba(14, 165, 233, 0.45);
 }
@@ -479,9 +473,9 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .field-unit {
-  width: 32px;
+  min-width: 28px;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .amount-step {

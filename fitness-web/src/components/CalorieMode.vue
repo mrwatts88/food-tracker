@@ -580,38 +580,6 @@ onBeforeUnmount(() => {
         </button>
         -->
         <button
-          class="track-action-button track-action-button--divider"
-          :disabled="keyboardSubmitting"
-          @click="handleInsertDivider"
-        >
-          <span v-if="keyboardSubmitting" class="track-action-spinner"></span>
-          <span v-else>BINK</span>
-        </button>
-        <button
-          class="track-action-button track-action-button--settings"
-          type="button"
-          aria-label="Settings"
-          title="Settings"
-          @click="handleSettingsClick"
-        >
-          <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            />
-            <path
-              d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .9l-.03.08a2 2 0 0 1-3.86 0l-.03-.08a1.7 1.7 0 0 0-1-.9 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-.9-1l-.08-.03a2 2 0 0 1 0-3.86l.08-.03a1.7 1.7 0 0 0 .9-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1-.9l.03-.08a2 2 0 0 1 3.86 0l.03.08a1.7 1.7 0 0 0 1 .9 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.09.39.42.73.9 1l.08.03a2 2 0 0 1 0 3.86l-.08.03a1.7 1.7 0 0 0-.86 1.08Z"
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-            />
-          </svg>
-        </button>
-        <button
           class="track-action-button track-action-button--label"
           type="button"
           aria-label="Scan nutrition label"
@@ -639,6 +607,38 @@ onBeforeUnmount(() => {
           capture="environment"
           @change="handleLabelPhoto"
         />
+        <button
+          class="track-action-button track-action-button--settings"
+          type="button"
+          aria-label="Settings"
+          title="Settings"
+          @click="handleSettingsClick"
+        >
+          <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .9l-.03.08a2 2 0 0 1-3.86 0l-.03-.08a1.7 1.7 0 0 0-1-.9 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-.9-1l-.08-.03a2 2 0 0 1 0-3.86l.08-.03a1.7 1.7 0 0 0 .9-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1-.9l.03-.08a2 2 0 0 1 3.86 0l.03.08a1.7 1.7 0 0 0 1 .9 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.09.39.42.73.9 1l.08.03a2 2 0 0 1 0 3.86l-.08.03a1.7 1.7 0 0 0-.86 1.08Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+            />
+          </svg>
+        </button>
+        <button
+          class="track-action-button track-action-button--divider"
+          :disabled="keyboardSubmitting"
+          @click="handleInsertDivider"
+        >
+          <span v-if="keyboardSubmitting" class="track-action-spinner"></span>
+          <span v-else>BINK</span>
+        </button>
         <!-- Temporarily hidden: voice entry button.
         <VoiceEntryButton
           :state="voiceState"
