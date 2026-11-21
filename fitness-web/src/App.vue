@@ -79,6 +79,8 @@ body {
 
 @media (min-width: 431px) {
   #app {
+    /* No #top-edge bar at this width (see index.html). */
+    top: 0;
     padding: var(--spacing-md) 0;
   }
 

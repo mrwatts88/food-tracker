@@ -25,6 +25,14 @@
         background: #374151;
         z-index: 2000;
       }
+
+      /* Wider screens show the app as a floating card, where a full-width bar looks
+         detached. Matches the 431px breakpoint in App.vue. */
+      @media (min-width: 431px) {
+        #top-edge {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>
