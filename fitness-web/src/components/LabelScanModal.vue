@@ -3,6 +3,8 @@ import { computed, reactive, ref } from 'vue'
 
 import type { LabelMetric, LabelParseResult, VoiceMetric } from '@/types'
 
+import NumberPad, { type NumberPadKey } from './NumberPad.vue'
+
 interface Props {
   result: LabelParseResult
   lockedMetrics: VoiceMetric[]
@@ -27,7 +29,6 @@ const metricRows: Array<{ metric: LabelMetric; label: string; unit: string; colo
 ]
 
 const step = ref<'confirm' | 'amount'>('confirm')
-const amountInput = ref<HTMLInputElement | null>(null)
 const amountText = ref('')
 
 // Editable copies of the parsed values, as strings so an empty field means
@@ -96,16 +97,35 @@ function goToAmount() {
     return
   }
 
-  // iOS only raises the keyboard when focus() runs inside the tap handler, so
-  // the amount input stays mounted (just hidden) and is focused synchronously
-  // before the step flips.
-  amountInput.value?.focus({ preventScroll: true })
   step.value = 'amount'
 }
 
 function goBack() {
   step.value = 'confirm'
-  amountInput.value?.blur()
+}
+
+const MAX_AMOUNT_LENGTH = 6
+
+function handlePadPress(key: NumberPadKey) {
+  const current = amountText.value
+
+  if (key === 'back') {
+    amountText.value = current.slice(0, -1)
+    return
+  }
+
+  if (key === '.') {
+    if (!current.includes('.')) {
+      amountText.value = current === '' ? '0.' : `${current}.`
+    }
+    return
+  }
+
+  if (current.length >= MAX_AMOUNT_LENGTH) {
+    return
+  }
+
+  amountText.value = current === '0' ? key : current + key
 }
 
 function submit() {
@@ -161,7 +181,7 @@ function formatTotal(metric: LabelMetric, value: number) {
         <p v-if="result.servingSizeText" class="serving-text">Serving: {{ result.servingSizeText }}</p>
       </div>
 
-      <div v-show="step === 'confirm'" class="modal-body">
+      <div v-if="step === 'confirm'" class="modal-body">
         <section v-if="result.warnings.length > 0" class="warning-panel">
           <ul class="warning-list">
             <li v-for="warning in result.warnings" :key="warning">{{ warning }}</li>
@@ -212,19 +232,11 @@ function formatTotal(metric: LabelMetric, value: number) {
         </label>
       </div>
 
-      <div class="modal-body amount-step" :class="{ 'is-hidden': step !== 'amount' }">
-        <label class="amount-field">
-          <input
-            ref="amountInput"
-            v-model="amountText"
-            class="amount-input"
-            type="text"
-            inputmode="decimal"
-            :aria-label="logsByGrams ? 'Grams eaten' : 'Servings eaten'"
-            @keydown.enter.prevent="submit"
-          />
+      <div v-if="step === 'amount'" class="amount-step">
+        <div class="amount-display" :aria-label="logsByGrams ? 'Grams eaten' : 'Servings eaten'">
+          <span class="amount-value" :class="{ 'is-empty': amountText === '' }">{{ amountText || '0' }}</span>
           <span class="amount-unit">{{ logsByGrams ? 'g' : 'servings' }}</span>
-        </label>
+        </div>
 
         <div class="totals-grid">
           <div v-for="row in loggableRows" :key="row.metric" class="total-card">
@@ -232,6 +244,8 @@ function formatTotal(metric: LabelMetric, value: number) {
             <strong class="total-value">{{ formatTotal(row.metric, totals[row.metric]) }}</strong>
           </div>
         </div>
+
+        <NumberPad @press="handlePadPress" />
       </div>
 
       <div class="modal-actions">
@@ -282,9 +296,12 @@ function formatTotal(metric: LabelMetric, value: number) {
   flex-direction: column;
 }
 
-.modal-header,
+.modal-header {
+  padding: 12px 16px 10px;
+}
+
 .modal-actions {
-  padding: 16px;
+  padding: 10px 12px max(10px, env(safe-area-inset-bottom));
 }
 
 .modal-header {
@@ -296,38 +313,25 @@ function formatTotal(metric: LabelMetric, value: number) {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #7dd3fc;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .title {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.1;
 }
 
 .serving-text {
-  margin-top: 6px;
+  margin-top: 4px;
   color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .modal-body {
   overflow-y: auto;
-  padding: 16px;
+  padding: 10px 12px;
   display: grid;
-  gap: 8px;
-}
-
-/* Kept mounted so its input can be focused from the "Looks right" tap. */
-.amount-step.is-hidden {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 0;
-  padding: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
+  gap: 6px;
 }
 
 .section-label {
@@ -358,8 +362,8 @@ function formatTotal(metric: LabelMetric, value: number) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
-  border-radius: 12px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -395,7 +399,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 
 .field-input {
   width: 84px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
@@ -411,52 +415,60 @@ function formatTotal(metric: LabelMetric, value: number) {
   font-size: 13px;
 }
 
-.amount-field {
+.amount-step {
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.amount-display {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 10px;
-  padding: 8px 0 12px;
+  gap: 8px;
+  min-height: 56px;
+  padding: 6px 12px;
+  border-radius: var(--border-radius);
+  background: var(--color-background);
 }
 
-.amount-input {
-  width: 160px;
-  padding: 10px 12px;
-  border: 1px solid rgba(125, 211, 252, 0.35);
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.25);
-  color: var(--color-text);
-  font-size: 36px;
+.amount-value {
+  font-size: 40px;
   font-weight: 800;
-  text-align: center;
+  line-height: 1.1;
+}
+
+.amount-value.is-empty {
+  color: var(--color-text-muted);
 }
 
 .amount-unit {
-  font-size: 18px;
+  font-size: 16px;
   color: var(--color-text-secondary);
 }
 
 .totals-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .total-card {
-  padding: 12px 14px;
+  padding: 6px 10px;
   display: grid;
-  gap: 4px;
-  border-radius: 14px;
+  gap: 2px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .total-name {
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .total-value {
-  font-size: 18px;
+  font-size: 15px;
+  white-space: nowrap;
 }
 
 .modal-actions {
@@ -468,7 +480,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 
 .secondary-button,
 .primary-button {
-  min-height: 48px;
+  min-height: 44px;
   border: none;
   border-radius: 14px;
   font-size: 15px;
@@ -498,8 +510,8 @@ function formatTotal(metric: LabelMetric, value: number) {
   }
 
   .modal-content {
-    max-height: 92vh;
-    border-radius: 20px 20px 0 0;
+    max-height: calc(100dvh - 8px);
+    border-radius: 16px 16px 0 0;
   }
 }
 </style>
