@@ -33,6 +33,7 @@ const labels: Record<string, string> = {
   caffeine: 'Caffeine target',
   carbs: 'Carbs limit',
   protein: 'Protein target',
+  fiber: 'Fiber target',
   sodium: 'Sodium limit',
   steps: 'Steps target',
   sugar: 'Sugar limit',

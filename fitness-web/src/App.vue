@@ -12,6 +12,7 @@
   --color-caffeine-primary: #14b8a6;
   --color-carbs-primary: #a855f7;
   --color-sodium-primary: #ec4899;
+  --color-fiber-primary: #d4a76a;
   --color-steps-primary: #a3e635;
   --color-weight-primary: #f59e0b;
   --color-lifts-primary: #ef4444;

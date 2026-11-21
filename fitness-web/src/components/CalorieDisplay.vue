@@ -532,7 +532,7 @@ function formatNumber(value: number) {
           </div>
         </section>
 
-        <!-- Page 2: protein, sodium, carbs. Tapping a row points the keypad at it. -->
+        <!-- Page 2: protein, fiber, sodium, carbs. Tapping a row points the keypad at it. -->
         <section
           class="summary-page"
           aria-label="Macros"

@@ -36,6 +36,12 @@ export const sodiumEntries = pgTable('sodium_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const fiberEntries = pgTable('fiber_entries', {
+  id: serial('id').primaryKey(),
+  amount: integer('amount').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const stepsEntries = pgTable('steps_entries', {
   id: serial('id').primaryKey(),
   amount: integer('amount').notNull(),
@@ -105,6 +111,7 @@ export const schema = {
   caffeineEntries,
   carbsEntries,
   sodiumEntries,
+  fiberEntries,
   stepsEntries,
   entryDividers,
   nutritionGoals,

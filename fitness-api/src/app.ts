@@ -14,6 +14,7 @@ import {
   nutritionGoals,
   proteinEntries,
   sodiumEntries,
+  fiberEntries,
   stepsEntries,
   sugarEntries,
   weightEntries
@@ -103,7 +104,7 @@ const unlockScheduleSchema = z.object({
     .max(24)
 })
 const weightDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'steps'
+type NutritionRoutePath = 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'fiber' | 'steps'
 type NutritionAlertMetric = 'sugar' | 'caffeine'
 type NutritionEntryTable =
   | typeof proteinEntries
@@ -111,6 +112,7 @@ type NutritionEntryTable =
   | typeof caffeineEntries
   | typeof carbsEntries
   | typeof sodiumEntries
+  | typeof fiberEntries
   | typeof stepsEntries
 type AmountEntryTable = typeof calorieEntries | NutritionEntryTable
 
@@ -448,6 +450,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'caffeine', caffeineEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'carbs', carbsEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'sodium', sodiumEntries)
+  registerNutritionEntryRoutes(app, dependencies, config, notifier, 'fiber', fiberEntries)
   registerNutritionEntryRoutes(app, dependencies, config, notifier, 'steps', stepsEntries)
 
   app.get('/nutrition/goals', async c => {
@@ -653,8 +656,8 @@ function registerNutritionEntryRoutes(
 
     const createdEntry = assertFound(entry, `Failed to create ${path} entry`)
 
-    // Sodium is tracked and displayed but does not take part in the daily goal streak.
-    if (path !== 'sodium') {
+    // Sodium and fiber are tracked and displayed but do not take part in the daily goal streak.
+    if (path !== 'sodium' && path !== 'fiber') {
       await recordDailyGoalEntry({
         db: runtime.db,
         metric: path,
@@ -768,7 +771,7 @@ function jsonError(message: string, status: number) {
 }
 
 function getNutritionAlertMetric(path: NutritionRoutePath): NutritionAlertMetric | null {
-  if (path === 'protein' || path === 'carbs' || path === 'sodium' || path === 'steps') {
+  if (path === 'protein' || path === 'carbs' || path === 'sodium' || path === 'fiber' || path === 'steps') {
     return null
   }
 
@@ -812,6 +815,7 @@ async function getConfigRows(db: Database) {
     ['caffeine', DEFAULT_GOAL_CONFIG.caffeine],
     ['carbs', DEFAULT_GOAL_CONFIG.carbs],
     ['sodium', DEFAULT_GOAL_CONFIG.sodium],
+    ['fiber', DEFAULT_GOAL_CONFIG.fiber],
     ['steps', DEFAULT_GOAL_CONFIG.steps],
     ['calorie_deficit', DEFAULT_GOAL_CONFIG.calorieDeficit],
     ['calorie_target', DEFAULT_GOAL_CONFIG.calorieTarget ?? 0]
@@ -836,6 +840,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     caffeineResult,
     carbsResult,
     sodiumResult,
+    fiberResult,
     stepsResult,
     dividerResult
   ] = await Promise.all([
@@ -864,6 +869,10 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
       .from(sodiumEntries)
       .where(and(gte(sodiumEntries.createdAt, today.startUtc), lte(sodiumEntries.createdAt, now))),
     db
+      .select({ createdAt: max(fiberEntries.createdAt) })
+      .from(fiberEntries)
+      .where(and(gte(fiberEntries.createdAt, today.startUtc), lte(fiberEntries.createdAt, now))),
+    db
       .select({ createdAt: max(stepsEntries.createdAt) })
       .from(stepsEntries)
       .where(and(gte(stepsEntries.createdAt, today.startUtc), lte(stepsEntries.createdAt, now))),
@@ -880,6 +889,7 @@ async function getLatestTrackedActivityAt(db: Database, now: Date, timezone: str
     caffeineResult[0]?.createdAt,
     carbsResult[0]?.createdAt,
     sodiumResult[0]?.createdAt,
+    fiberResult[0]?.createdAt,
     stepsResult[0]?.createdAt,
     dividerResult[0]?.createdAt
   ].reduce<Date | null>((latest, current) => {

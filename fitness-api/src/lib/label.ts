@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import type { AppConfig } from '../config'
 
-export type LabelMetric = 'calorie' | 'protein' | 'sugar' | 'carbs' | 'sodium'
+export type LabelMetric = 'calorie' | 'protein' | 'sugar' | 'carbs' | 'sodium' | 'fiber'
 
 export type LabelParseResult = {
   productName: string | null
@@ -55,12 +55,13 @@ const parsedLabelSchema = z.object({
     protein: nutrientSchema,
     sugar: nutrientSchema,
     carbs: nutrientSchema,
-    sodium: nutrientSchema
+    sodium: nutrientSchema,
+    fiber: nutrientSchema
   }),
   warnings: z.array(z.string())
 })
 
-const SYSTEM_PROMPT = `You read photos of nutrition facts labels and transcribe the per-serving values exactly as printed. Never estimate or use outside nutrition knowledge: if a value is not printed, or you cannot read it confidently, return null for it. Add a short warning only for calories, carbs, sodium, protein, or sugar that you could not read; a missing product name is normal and needs no warning.
+const SYSTEM_PROMPT = `You read photos of nutrition facts labels and transcribe the per-serving values exactly as printed. Never estimate or use outside nutrition knowledge: if a value is not printed, or you cannot read it confidently, return null for it. Add a short warning only for calories, carbs, sodium, protein, sugar, or fiber that you could not read; a missing product name is normal and needs no warning.
 
 Fields:
 - servingSizeText: the serving size line as printed, e.g. "2/3 cup (55g)".
@@ -68,6 +69,7 @@ Fields:
 - calorie: kcal per serving.
 - protein, carbs, sugar: grams per serving. carbs is Total Carbohydrate. sugar is Total Sugars, not Added Sugars.
 - sodium: milligrams per serving; convert if printed in grams.
+- fiber: grams of Dietary Fiber per serving. Use the Dietary Fiber line, not Soluble or Insoluble Fiber sub-lines.
 - Treat "<1g" or "less than 1g" as 0. Keep decimals as printed.
 - If the label has multiple columns (per serving and per container, or prepared and unprepared), use the per-serving, as-packaged column and add a warning saying so.
 - If the image is not a nutrition facts label, set isNutritionLabel to false and leave everything else null.
@@ -158,7 +160,8 @@ function emptyResult(warnings: string[]): LabelParseResult {
       protein: null,
       sugar: null,
       carbs: null,
-      sodium: null
+      sodium: null,
+      fiber: null
     },
     warnings
   }

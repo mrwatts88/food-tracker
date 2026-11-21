@@ -26,6 +26,7 @@ const metricRows: Array<{ metric: LabelMetric; label: string; unit: string; colo
   { metric: 'sodium', label: 'Sodium', unit: 'mg', color: 'var(--color-sodium-primary)' },
   { metric: 'protein', label: 'Protein', unit: 'g', color: 'var(--color-protein-primary)' },
   { metric: 'sugar', label: 'Sugar', unit: 'g', color: 'var(--color-sugar-primary)' },
+  { metric: 'fiber', label: 'Fiber', unit: 'g', color: 'var(--color-fiber-primary)' },
 ]
 
 const step = ref<'confirm' | 'amount'>('confirm')
@@ -229,7 +230,7 @@ function formatTotal(metric: LabelMetric, value: number) {
           <button
             v-if="logsByGrams"
             type="button"
-            class="field-cell"
+            class="field-cell field-cell--wide"
             :class="{ 'is-active': activeField === 'servingGrams' }"
             @click="selectField('servingGrams')"
           >
@@ -413,6 +414,10 @@ function formatTotal(metric: LabelMetric, value: number) {
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.field-cell--wide {
+  grid-column: 1 / -1;
 }
 
 .field-cell.is-locked {

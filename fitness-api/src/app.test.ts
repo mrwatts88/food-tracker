@@ -20,6 +20,7 @@ import {
   nutritionGoals,
   proteinEntries,
   sodiumEntries,
+  fiberEntries,
   stepsEntries,
   schema,
   sugarEntries,
@@ -115,7 +116,7 @@ function createOpenAiVoiceParserMock(options: {
           name?: string
           quantityText?: string | null
           estimated: Array<{
-            metric: 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium'
+            metric: 'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'fiber'
             amount: number
           }>
         }>
@@ -161,6 +162,7 @@ async function clearTrackingData() {
   await db.delete(caffeineEntries)
   await db.delete(carbsEntries)
   await db.delete(sodiumEntries)
+  await db.delete(fiberEntries)
   await db.delete(stepsEntries)
   await db.delete(entryDividers)
   await db.delete(dailyGoalDays)
@@ -169,7 +171,7 @@ async function clearTrackingData() {
 }
 
 async function addEntryAt(
-  path: 'calories' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'steps',
+  path: 'calories' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'fiber' | 'steps',
   createdAt: Date,
   amount: number
 ) {
@@ -282,7 +284,8 @@ describe('fitness api', () => {
         sugar: 20,
         caffeine: 100,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       },
       warnings: []
     })
@@ -331,7 +334,8 @@ describe('fitness api', () => {
         sugar: 0,
         caffeine: 0,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       }
     })
   })
@@ -359,7 +363,7 @@ describe('fitness api', () => {
       body: createAudioFormData()
     })
     const body = (await response.json()) as {
-      totals: Record<'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium', number>
+      totals: Record<'calorie' | 'protein' | 'sugar' | 'caffeine' | 'carbs' | 'sodium' | 'fiber', number>
       items: Array<{
         estimated: Array<{ metric: string; amount: number }>
       }>
@@ -372,7 +376,8 @@ describe('fitness api', () => {
       sugar: 0,
       caffeine: 0,
       carbs: 0,
-      sodium: 0
+      sodium: 0,
+      fiber: 0
     })
     expect(body.items[0]?.estimated).toEqual([{ metric: 'protein', amount: 10 }])
   })
@@ -412,7 +417,8 @@ describe('fitness api', () => {
         sugar: 14,
         caffeine: 0,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       },
       items: [
         {
@@ -463,7 +469,8 @@ describe('fitness api', () => {
         sugar: 8,
         caffeine: 100,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       }
     })
   })
@@ -503,7 +510,8 @@ describe('fitness api', () => {
         sugar: 0,
         caffeine: 0,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       }
     })
     expect(openai.audio.transcriptions.create).not.toHaveBeenCalled()
@@ -550,7 +558,8 @@ describe('fitness api', () => {
         sugar: 0,
         caffeine: 0,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       },
       warnings: ['No speech was detected.']
     })
@@ -580,7 +589,8 @@ describe('fitness api', () => {
         sugar: 0,
         caffeine: 0,
         carbs: 0,
-        sodium: 0
+        sodium: 0,
+        fiber: 0
       },
       warnings: ['No nutrition entries were detected from the request.']
     })
@@ -622,7 +632,8 @@ describe('fitness api', () => {
       protein: null,
       sugar: null,
       carbs: null,
-      sodium: null
+      sodium: null,
+      fiber: null
     }
 
     it('returns per-serving values and converts the serving mass to grams', async () => {
@@ -631,7 +642,7 @@ describe('fitness api', () => {
         productName: 'Trail Mix',
         servingSizeText: '1/4 cup (1 oz)',
         servingMass: { amount: 1, unit: 'oz' },
-        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5 },
+        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5, fiber: 3 },
         warnings: []
       })
       const labelApp = createTestApp({ labelParser: parser })
@@ -646,7 +657,7 @@ describe('fitness api', () => {
         productName: 'Trail Mix',
         servingSizeText: '1/4 cup (1 oz)',
         servingGrams: 28.3,
-        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5 },
+        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5, fiber: 3 },
         warnings: []
       })
       expect(parse).toHaveBeenCalledWith(
@@ -752,6 +763,7 @@ describe('fitness api', () => {
       caffeine: 280,
       carbs: 200,
       sodium: 2300,
+      fiber: 30,
       steps: 7000,
       calorieDeficit: 250,
       calorieTarget: null
@@ -776,6 +788,7 @@ describe('fitness api', () => {
       caffeine: 280,
       carbs: 200,
       sodium: 2300,
+      fiber: 30,
       steps: 7000,
       calorieDeficit: 250,
       calorieTarget: null
@@ -802,6 +815,7 @@ describe('fitness api', () => {
       { metric: 'calorie_deficit', amount: 250 },
       { metric: 'calorie_target', amount: 0 },
       { metric: 'carbs', amount: 200 },
+      { metric: 'fiber', amount: 30 },
       { metric: 'protein', amount: 130 },
       { metric: 'sodium', amount: 2300 },
       { metric: 'steps', amount: 7000 },
@@ -859,6 +873,7 @@ describe('fitness api', () => {
         caffeine: 280,
         carbs: 200,
         sodium: 2300,
+        fiber: 30,
         steps: 7000,
         calorieDeficit: 250,
         calorieTarget: null
@@ -2423,6 +2438,30 @@ describe('sodium entries', () => {
     const listResponse = await app.request('/api/sodium')
     expect(listResponse.status).toBe(200)
     await expect(listResponse.json()).resolves.toMatchObject([{ amount: 640 }])
+
+    const goalDays = await db.select().from(dailyGoalDays)
+    expect(goalDays).toEqual([])
+
+    await clearTrackingData()
+  })
+})
+
+describe('fiber entries', () => {
+  it('creates and lists fiber entries without touching the daily goal streak', async () => {
+    await clearTrackingData()
+
+    const createResponse = await app.request('/api/fiber', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 8 })
+    })
+
+    expect(createResponse.status).toBe(201)
+    await expect(createResponse.json()).resolves.toMatchObject({ amount: 8 })
+
+    const listResponse = await app.request('/api/fiber')
+    expect(listResponse.status).toBe(200)
+    await expect(listResponse.json()).resolves.toMatchObject([{ amount: 8 }])
 
     const goalDays = await db.select().from(dailyGoalDays)
     expect(goalDays).toEqual([])

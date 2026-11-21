@@ -50,6 +50,7 @@ const nutritionEndpoints: Record<NutritionMetric, string> = {
   caffeine: '/caffeine',
   carbs: '/carbs',
   sodium: '/sodium',
+  fiber: '/fiber',
   steps: '/steps',
 }
 
