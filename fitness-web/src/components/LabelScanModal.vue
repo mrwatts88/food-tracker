@@ -116,6 +116,14 @@ function submit() {
   emit('submit', totals.value)
 }
 
+// Every tap on a confirm-screen field selects its whole value, so typing
+// replaces it instead of editing around wherever the cursor landed. Deferred
+// a tick because iOS places the caret after focus/click handlers run.
+function selectAll(event: Event) {
+  const input = event.target as HTMLInputElement
+  window.setTimeout(() => input.setSelectionRange(0, input.value.length))
+}
+
 function formatEditable(value: number | null) {
   return value === null ? '' : String(value)
 }
@@ -169,6 +177,8 @@ function formatTotal(metric: LabelMetric, value: number) {
               type="text"
               inputmode="decimal"
               placeholder="—"
+              @focus="selectAll"
+              @click="selectAll"
             />
             <span class="field-unit">g</span>
           </span>
@@ -194,6 +204,8 @@ function formatTotal(metric: LabelMetric, value: number) {
               inputmode="decimal"
               placeholder="—"
               :disabled="lockedMetrics.includes(row.metric)"
+              @focus="selectAll"
+              @click="selectAll"
             />
             <span class="field-unit">{{ row.unit }}</span>
           </span>
