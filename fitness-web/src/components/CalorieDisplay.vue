@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
   homeMacroMetrics,
+  homeMacroPages,
   nutritionMetricColorVars,
   nutritionMetricLabels,
   nutritionMetricUnits,
@@ -33,59 +34,79 @@ let intervalId: number | null = null
 
 const isWeightMode = computed(() => props.activeMetric === 'weight')
 
-// The calorie card is a two-page vertical pager: page 0 is the calorie summary,
-// page 1 is the macros. Native scroll-snap does the swiping; this component only
-// tracks which page is showing and keeps the keypad's metric in step with it.
+// The calorie card is a vertical pager: page 0 is the calorie summary and each
+// page after it holds one group of macros from homeMacroPages. Native
+// scroll-snap does the swiping; this component only tracks which page is
+// showing and keeps the keypad's metric in step with it.
 const PAGE_CALORIES = 0
-const PAGE_MACROS = 1
+const LAST_PAGE = homeMacroPages.length
 const pagerElement = ref<HTMLElement | null>(null)
 const currentPage = ref(PAGE_CALORIES)
-const lastMacro = ref<NutritionMetric>('protein')
+// The macro each macro page last pointed the keypad at, so paging back to it
+// picks up where it left off.
+const lastMacroByPage = ref<NutritionMetric[]>(homeMacroPages.map((metrics) => metrics[0]!))
 // Set while a programmatic scroll is in flight so intermediate scroll events do
 // not read as the user paging. Cleared when it lands or when the user touches.
 let pendingPage: number | null = null
 
 // Metrics whose goal is a ceiling rather than a floor.
-const limitMacros: ReadonlySet<NutritionMetric> = new Set(['sugar', 'carbs', 'sodium'])
+const limitMacros: ReadonlySet<NutritionMetric> = new Set(['sugar', 'carbs', 'sodium', 'caffeine'])
 
 function isHomeMacro(metric: EntryMetric): metric is NutritionMetric {
   return homeMacroMetrics.includes(metric as NutritionMetric)
 }
 
-const selectedMacro = computed<NutritionMetric>(() =>
-  isHomeMacro(props.activeMetric) ? props.activeMetric : lastMacro.value,
-)
-const macrosAccent = computed(() => nutritionMetricColorVars[selectedMacro.value])
+// Pager page for a home macro (1 for the first macro page).
+function pageOfMacro(metric: NutritionMetric) {
+  return homeMacroPages.findIndex((metrics) => metrics.includes(metric)) + 1
+}
 
-const macroRows = computed(() =>
-  homeMacroMetrics.map((metric) => {
-    const total = nutritionStore.totalsByMetric[metric]
-    const configuredGoal = nutritionStore.goalsByMetric[metric]
-    // A goal of 0 in settings means "no goal", not "met at zero".
-    const goal = configuredGoal > 0 ? configuredGoal : null
-    const isLimit = limitMacros.has(metric)
-    const ratio = goal === null ? 0 : total / goal
+function rememberMacro(metric: NutritionMetric) {
+  lastMacroByPage.value[pageOfMacro(metric) - 1] = metric
+}
+
+const macroPages = computed(() =>
+  homeMacroPages.map((metrics, index) => {
+    const selected = metrics.includes(props.activeMetric as NutritionMetric)
+      ? (props.activeMetric as NutritionMetric)
+      : lastMacroByPage.value[index]!
 
     return {
-      metric,
-      label: nutritionMetricLabels[metric],
-      unit: nutritionMetricUnits[metric],
-      total,
-      goal,
-      progress: Math.min(1, ratio),
-      // Over a ceiling is a warning; reaching a floor is a win.
-      over: isLimit && goal !== null && total > goal,
-      met: !isLimit && goal !== null && total >= goal,
-      accent: nutritionMetricColorVars[metric],
-      active: props.activeMetric === metric,
-      loading: nutritionStore.loadingByMetric[metric] && !nutritionStore.submittingByMetric[metric],
-      submitting: nutritionStore.submittingByMetric[metric],
+      page: index + 1,
+      label: metrics.map((metric) => nutritionMetricLabels[metric]).join(', '),
+      accent: nutritionMetricColorVars[selected],
+      rows: metrics.map(macroRow),
     }
   }),
 )
 
+function macroRow(metric: NutritionMetric) {
+  const total = nutritionStore.totalsByMetric[metric]
+  const configuredGoal = nutritionStore.goalsByMetric[metric]
+  // A goal of 0 in settings means "no goal", not "met at zero".
+  const goal = configuredGoal > 0 ? configuredGoal : null
+  const isLimit = limitMacros.has(metric)
+  const ratio = goal === null ? 0 : total / goal
+
+  return {
+    metric,
+    label: nutritionMetricLabels[metric],
+    unit: nutritionMetricUnits[metric],
+    total,
+    goal,
+    progress: Math.min(1, ratio),
+    // Over a ceiling is a warning; reaching a floor is a win.
+    over: isLimit && goal !== null && total > goal,
+    met: !isLimit && goal !== null && total >= goal,
+    accent: nutritionMetricColorVars[metric],
+    active: props.activeMetric === metric,
+    loading: nutritionStore.loadingByMetric[metric] && !nutritionStore.submittingByMetric[metric],
+    submitting: nutritionStore.submittingByMetric[metric],
+  }
+}
+
 const pageForMetric = computed(() =>
-  isHomeMacro(props.activeMetric) ? PAGE_MACROS : PAGE_CALORIES,
+  isHomeMacro(props.activeMetric) ? pageOfMacro(props.activeMetric) : PAGE_CALORIES,
 )
 
 const unlockStatus = computed(() => calorieStore.unlockStatus)
@@ -236,7 +257,7 @@ watch(
   () => props.activeMetric,
   (metric) => {
     if (isHomeMacro(metric)) {
-      lastMacro.value = metric
+      rememberMacro(metric)
     }
 
     if (pageForMetric.value !== currentPage.value) {
@@ -307,21 +328,23 @@ function handlePagerScroll() {
   const stride = pageStride(element)
 
   if (pendingPage !== null) {
-    if (Math.abs(element.scrollTop - pendingPage * stride) < 1) {
-      pendingPage = null
+    if (Math.abs(element.scrollTop - pendingPage * stride) >= 1) {
+      return
     }
 
-    return
+    // Landed: fall through so a scroll started by the dots or arrow keys
+    // updates the page and the keypad metric like a swipe does.
+    pendingPage = null
   }
 
-  const page = Math.round(element.scrollTop / stride)
+  const page = Math.min(LAST_PAGE, Math.max(PAGE_CALORIES, Math.round(element.scrollTop / stride)))
 
   if (page === currentPage.value) {
     return
   }
 
   currentPage.value = page
-  emit('select-metric', page === PAGE_MACROS ? lastMacro.value : 'calorie')
+  emit('select-metric', page === PAGE_CALORIES ? 'calorie' : lastMacroByPage.value[page - 1]!)
 }
 
 function handlePagerUserInput() {
@@ -329,7 +352,7 @@ function handlePagerUserInput() {
 }
 
 function selectMacro(metric: NutritionMetric) {
-  lastMacro.value = metric
+  rememberMacro(metric)
   emit('select-metric', metric)
 }
 
@@ -340,10 +363,10 @@ function handleKeyDown(event: KeyboardEvent) {
 
   if (event.key === 'ArrowDown') {
     event.preventDefault()
-    scrollToPage(PAGE_MACROS, 'smooth')
+    scrollToPage(Math.min(LAST_PAGE, currentPage.value + 1), 'smooth')
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
-    scrollToPage(PAGE_CALORIES, 'smooth')
+    scrollToPage(Math.max(PAGE_CALORIES, currentPage.value - 1), 'smooth')
   }
 }
 
@@ -443,7 +466,7 @@ function formatNumber(value: number) {
       </template>
     </div>
 
-    <!-- Calorie mode: a two-page pager. Swipe up for macros, down to come back. -->
+    <!-- Calorie mode: a vertical pager. Swipe up for the macro pages, down to come back. -->
     <template v-else>
       <div
         ref="pagerElement"
@@ -532,16 +555,18 @@ function formatNumber(value: number) {
           </div>
         </section>
 
-        <!-- Page 2: sodium, carbs, fiber, protein, in label order. Tapping a row points the keypad at it. -->
+        <!-- Macro pages: three macros each, in label order. Tapping a row points the keypad at it. -->
         <section
+          v-for="macroPage in macroPages"
+          :key="macroPage.page"
           class="summary-page"
-          aria-label="Macros"
-          :aria-hidden="currentPage !== PAGE_MACROS"
+          :aria-label="macroPage.label"
+          :aria-hidden="currentPage !== macroPage.page"
         >
-          <div class="summary-card macros-card" :style="{ '--summary-accent': macrosAccent }">
+          <div class="summary-card macros-card" :style="{ '--summary-accent': macroPage.accent }">
             <div class="macro-list">
               <div
-                v-for="row in macroRows"
+                v-for="row in macroPage.rows"
                 :key="row.metric"
                 class="macro-row"
                 :class="{
@@ -622,13 +647,15 @@ function formatNumber(value: number) {
           @click="scrollToPage(PAGE_CALORIES, 'smooth')"
         ></button>
         <button
+          v-for="macroPage in macroPages"
+          :key="macroPage.page"
           class="summary-dot"
-          :class="{ 'summary-dot--active': currentPage === PAGE_MACROS }"
+          :class="{ 'summary-dot--active': currentPage === macroPage.page }"
           type="button"
           role="tab"
-          :aria-selected="currentPage === PAGE_MACROS"
-          aria-label="Macros"
-          @click="scrollToPage(PAGE_MACROS, 'smooth')"
+          :aria-selected="currentPage === macroPage.page"
+          :aria-label="macroPage.label"
+          @click="scrollToPage(macroPage.page, 'smooth')"
         ></button>
       </div>
     </template>
@@ -778,7 +805,7 @@ function formatNumber(value: number) {
   color: var(--color-text-secondary);
 }
 
-/* Pager: page 1 is the calorie card, page 2 is the macros */
+/* Pager: page 1 is the calorie card, the pages after it are the macros */
 .summary-pager {
   flex: 1;
   min-height: 0;
