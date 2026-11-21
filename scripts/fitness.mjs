@@ -18,7 +18,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const DEFAULT_API_URL = 'https://food-tracker-weld-six.vercel.app/api'
-const METRICS = ['calorie', 'protein', 'sugar', 'carbs', 'fiber', 'sodium', 'caffeine']
+const METRICS = ['calorie', 'sodium', 'carbs', 'fiber', 'sugar', 'protein', 'caffeine']
 const ROUTES = { calorie: 'calories', protein: 'protein', sugar: 'sugar', carbs: 'carbs', fiber: 'fiber', sodium: 'sodium', caffeine: 'caffeine' }
 const FORMAT = {
   calorie: amount => `${amount} cal`,

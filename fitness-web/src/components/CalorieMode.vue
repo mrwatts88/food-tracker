@@ -38,11 +38,11 @@ const weightStore = useWeightStore()
 const { isTrackLocked } = useTrackLocks()
 const LISTENING_TIMEOUT_SECONDS = 20
 const voiceEntryMetrics: Exclude<VoiceMetric, 'calorie'>[] = [
-  'protein',
-  'sugar',
-  'carbs',
   'sodium',
+  'carbs',
   'fiber',
+  'sugar',
+  'protein',
   'caffeine',
 ]
 

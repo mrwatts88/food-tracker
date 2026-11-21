@@ -25,14 +25,9 @@ const orderedTotals = computed<Array<{ metric: VoiceMetric; amount: number; labe
     label: `${props.preview.totals.calorie.toLocaleString()} cals`
   },
   {
-    metric: 'protein',
-    amount: props.preview.totals.protein,
-    label: formatNutritionTotal('protein', props.preview.totals.protein)
-  },
-  {
-    metric: 'sugar',
-    amount: props.preview.totals.sugar,
-    label: formatNutritionTotal('sugar', props.preview.totals.sugar)
+    metric: 'sodium',
+    amount: props.preview.totals.sodium,
+    label: formatNutritionTotal('sodium', props.preview.totals.sodium)
   },
   {
     metric: 'carbs',
@@ -40,14 +35,19 @@ const orderedTotals = computed<Array<{ metric: VoiceMetric; amount: number; labe
     label: formatNutritionTotal('carbs', props.preview.totals.carbs)
   },
   {
-    metric: 'sodium',
-    amount: props.preview.totals.sodium,
-    label: formatNutritionTotal('sodium', props.preview.totals.sodium)
-  },
-  {
     metric: 'fiber',
     amount: props.preview.totals.fiber,
     label: formatNutritionTotal('fiber', props.preview.totals.fiber)
+  },
+  {
+    metric: 'sugar',
+    amount: props.preview.totals.sugar,
+    label: formatNutritionTotal('sugar', props.preview.totals.sugar)
+  },
+  {
+    metric: 'protein',
+    amount: props.preview.totals.protein,
+    label: formatNutritionTotal('protein', props.preview.totals.protein)
   },
   {
     metric: 'caffeine',

@@ -22,11 +22,11 @@ const emit = defineEmits<{
 
 const metricRows: Array<{ metric: LabelMetric; label: string; unit: string; color: string }> = [
   { metric: 'calorie', label: 'Calories', unit: 'kcal', color: 'var(--color-calorie-primary)' },
-  { metric: 'carbs', label: 'Carbs', unit: 'g', color: 'var(--color-carbs-primary)' },
   { metric: 'sodium', label: 'Sodium', unit: 'mg', color: 'var(--color-sodium-primary)' },
-  { metric: 'protein', label: 'Protein', unit: 'g', color: 'var(--color-protein-primary)' },
-  { metric: 'sugar', label: 'Sugar', unit: 'g', color: 'var(--color-sugar-primary)' },
+  { metric: 'carbs', label: 'Carbs', unit: 'g', color: 'var(--color-carbs-primary)' },
   { metric: 'fiber', label: 'Fiber', unit: 'g', color: 'var(--color-fiber-primary)' },
+  { metric: 'sugar', label: 'Sugar', unit: 'g', color: 'var(--color-sugar-primary)' },
+  { metric: 'protein', label: 'Protein', unit: 'g', color: 'var(--color-protein-primary)' },
 ]
 
 const step = ref<'confirm' | 'amount'>('confirm')
