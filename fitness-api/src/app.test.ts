@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
+import type Anthropic from '@anthropic-ai/sdk'
 import type OpenAI from 'openai'
 
 import { createApp } from './app'
@@ -25,6 +26,7 @@ import {
   weightEntries
 } from './db/schema'
 import type { AlertEmail, AlertNotifier } from './lib/alerts'
+import { createLabelParser, type LabelParser } from './lib/label'
 import { createVoiceParser, type VoiceParser } from './lib/voice'
 
 const now = new Date('2026-03-17T17:00:00.000Z')
@@ -41,6 +43,7 @@ const defaultConfig: AppConfig = {
   openAiApiKey: 'test-openai-key',
   openAiTranscribeModel: 'gpt-4o-mini-transcribe',
   openAiParseModel: 'gpt-5.4-mini',
+  anthropicLabelModel: 'claude-opus-5-5',
   port: 3000
 }
 const app = createTestApp()
@@ -63,6 +66,7 @@ function createTestApp(
     config?: Partial<AppConfig>
     notifier?: AlertNotifier | null
     voiceParser?: VoiceParser | null
+    labelParser?: LabelParser | null
   } = {}
 ) {
   return createApp({
@@ -73,7 +77,8 @@ function createTestApp(
       ...options.config
     },
     notifier: options.notifier,
-    voiceParser: options.voiceParser
+    voiceParser: options.voiceParser,
+    labelParser: options.labelParser
   })
 }
 
@@ -590,6 +595,151 @@ describe('fitness api', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
       error: 'Invalid multipart form data'
+    })
+  })
+
+  describe('label parse', () => {
+    function createLabelParserMock(parsedOutput: unknown, stopReason = 'end_turn') {
+      const parse = vi.fn(async () => ({ stop_reason: stopReason, parsed_output: parsedOutput }))
+      const anthropic = { beta: { messages: { parse } } } as unknown as Pick<Anthropic, 'beta'>
+      const parser = createLabelParser(defaultConfig, { anthropic })
+
+      if (parser === null) {
+        throw new Error('Expected label parser to be created in tests')
+      }
+
+      return { parser, parse }
+    }
+
+    function createImageFormData(type = 'image/jpeg') {
+      const formData = new FormData()
+      formData.set('image', new File(['image-bytes'], 'label.jpg', { type }))
+      return formData
+    }
+
+    const blankPerServing = {
+      calorie: null,
+      protein: null,
+      sugar: null,
+      carbs: null,
+      sodium: null,
+      caffeine: null
+    }
+
+    it('returns per-serving values and converts the serving mass to grams', async () => {
+      const { parser, parse } = createLabelParserMock({
+        isNutritionLabel: true,
+        productName: 'Trail Mix',
+        servingSizeText: '1/4 cup (1 oz)',
+        servingMass: { amount: 1, unit: 'oz' },
+        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5 },
+        warnings: []
+      })
+      const labelApp = createTestApp({ labelParser: parser })
+
+      const response = await labelApp.request('/api/label/parse', {
+        method: 'POST',
+        body: createImageFormData()
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        productName: 'Trail Mix',
+        servingSizeText: '1/4 cup (1 oz)',
+        servingGrams: 28.3,
+        perServing: { ...blankPerServing, calorie: 160, carbs: 14, sugar: 8, sodium: 75, protein: 4.5 },
+        warnings: []
+      })
+      expect(parse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'claude-opus-5-5',
+          messages: [
+            expect.objectContaining({
+              content: expect.arrayContaining([
+                expect.objectContaining({
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: 'image/jpeg',
+                    data: Buffer.from('image-bytes').toString('base64')
+                  }
+                })
+              ])
+            })
+          ]
+        })
+      )
+    })
+
+    it('returns null servingGrams when the serving is only a volume', async () => {
+      const { parser } = createLabelParserMock({
+        isNutritionLabel: true,
+        productName: null,
+        servingSizeText: '1 cup (240mL)',
+        servingMass: null,
+        perServing: { ...blankPerServing, calorie: 120 },
+        warnings: []
+      })
+      const labelApp = createTestApp({ labelParser: parser })
+
+      const response = await labelApp.request('/api/label/parse', {
+        method: 'POST',
+        body: createImageFormData()
+      })
+
+      const body = await response.json()
+      expect(body.servingGrams).toBeNull()
+      expect(body.perServing.calorie).toBe(120)
+    })
+
+    it('warns when the photo is not a nutrition label or was refused', async () => {
+      const notLabel = createLabelParserMock({
+        isNutritionLabel: false,
+        productName: null,
+        servingSizeText: null,
+        servingMass: null,
+        perServing: blankPerServing,
+        warnings: []
+      })
+      const notLabelResponse = await createTestApp({ labelParser: notLabel.parser }).request(
+        '/api/label/parse',
+        { method: 'POST', body: createImageFormData() }
+      )
+      expect((await notLabelResponse.json()).warnings).toEqual([
+        'That does not look like a nutrition facts label.'
+      ])
+
+      const refused = createLabelParserMock(null, 'refusal')
+      const refusedResponse = await createTestApp({ labelParser: refused.parser }).request(
+        '/api/label/parse',
+        { method: 'POST', body: createImageFormData() }
+      )
+      expect((await refusedResponse.json()).warnings).toEqual([
+        'The label could not be read. Try another photo.'
+      ])
+    })
+
+    it('rejects missing images, unsupported types, and unconfigured parsers', async () => {
+      const { parser } = createLabelParserMock(null)
+      const labelApp = createTestApp({ labelParser: parser })
+
+      const missing = await labelApp.request('/api/label/parse', {
+        method: 'POST',
+        body: new FormData()
+      })
+      expect(missing.status).toBe(400)
+
+      const heic = await labelApp.request('/api/label/parse', {
+        method: 'POST',
+        body: createImageFormData('image/heic')
+      })
+      expect(heic.status).toBe(400)
+
+      const unconfigured = await createTestApp({ labelParser: null }).request('/api/label/parse', {
+        method: 'POST',
+        body: createImageFormData()
+      })
+      expect(unconfigured.status).toBe(503)
     })
   })
 

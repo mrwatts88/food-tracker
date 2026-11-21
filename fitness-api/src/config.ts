@@ -17,6 +17,8 @@ const envSchema = z
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_TRANSCRIBE_MODEL: z.string().default('gpt-4o-mini-transcribe'),
     OPENAI_PARSE_MODEL: z.string().default('gpt-5.4-mini'),
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    ANTHROPIC_LABEL_MODEL: z.string().default('claude-opus-5-5'),
     CORS_ORIGIN: z.string().optional(),
     PORT: z.coerce.number().int().positive().default(3000)
   })
@@ -45,6 +47,8 @@ export type AppConfig = {
   openAiApiKey?: string
   openAiTranscribeModel: string
   openAiParseModel: string
+  anthropicApiKey?: string
+  anthropicLabelModel: string
   corsOrigin?: string
   port: number
 }
@@ -63,6 +67,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     openAiApiKey: parsed.OPENAI_API_KEY,
     openAiTranscribeModel: parsed.OPENAI_TRANSCRIBE_MODEL,
     openAiParseModel: parsed.OPENAI_PARSE_MODEL,
+    anthropicApiKey: parsed.ANTHROPIC_API_KEY,
+    anthropicLabelModel: parsed.ANTHROPIC_LABEL_MODEL,
     corsOrigin: parsed.CORS_ORIGIN,
     port: parsed.PORT
   }

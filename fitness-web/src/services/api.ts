@@ -5,6 +5,7 @@ import type {
   DailyGoalStreakStatus,
   EntryDivider,
   GoalConfigResponse,
+  LabelParseResult,
   Lift,
   LiftUpdate,
   NutritionEntry,
@@ -78,6 +79,19 @@ export const voiceApi = {
         'Content-Type': 'multipart/form-data',
       },
     }),
+}
+
+export const labelApi = {
+  parse: (image: Blob) => {
+    const formData = new FormData()
+    formData.set('image', image, 'label.jpg')
+
+    return api.post<LabelParseResult>('/label/parse', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
 }
 
 // Weight API

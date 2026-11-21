@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 
 import { isNutritionMetric, nutritionMetricColorVars } from '@/lib/nutrition'
 import { useTrackLocks } from '@/lib/trackLocks'
-import { calorieApi, dailyGoalApi, nutritionApi, voiceApi } from '@/services/api'
+import { downscaleImage } from '@/lib/image'
+import { calorieApi, dailyGoalApi, labelApi, nutritionApi, voiceApi } from '@/services/api'
 import { useAppStore } from '@/stores/app'
 import { useCalorieStore } from '@/stores/calorie'
 import { useEntryDividerStore } from '@/stores/entryDivider'
@@ -14,12 +15,14 @@ import type {
   DailyGoalStreakStatus,
   EntryMetric,
   TrackMetric,
+  LabelParseResult,
   VoiceMetric,
   VoiceParsePreview,
   VoiceSessionState,
 } from '@/types'
 import CalorieDisplay from './CalorieDisplay.vue'
 import Keyboard from './Keyboard.vue'
+import LabelScanModal from './LabelScanModal.vue'
 import StreakModal from './StreakModal.vue'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- button temporarily hidden
 import VoiceEntryButton from './VoiceEntryButton.vue'
@@ -46,6 +49,15 @@ const recordingSecondsRemaining = ref(LISTENING_TIMEOUT_SECONDS)
 const voicePreview = ref<VoiceParsePreview | null>(null)
 const voiceError = ref<string | null>(null)
 const savingVoicePreview = ref(false)
+
+const labelFileInput = ref<HTMLInputElement | null>(null)
+const labelReading = ref(false)
+const labelResult = ref<LabelParseResult | null>(null)
+const savingLabel = ref(false)
+const labelError = ref<string | null>(null)
+const lockedLabelMetrics = computed(() =>
+  (['calorie', ...voiceEntryMetrics] as VoiceMetric[]).filter(metric => isTrackLocked(metric)),
+)
 
 const streakModalOpen = ref(false)
 const streakStatus = ref<DailyGoalStreakStatus | null>(null)
@@ -406,26 +418,41 @@ function closeVoicePreview() {
   voiceState.value = 'idle'
 }
 
-async function confirmVoicePreview() {
-  if (voicePreview.value === null || savingVoicePreview.value) {
-    return
-  }
-
-  const preview = voicePreview.value
+// Posts each nonzero total to its metric's endpoint, skipping locked tracks.
+// Returns false when nothing was sent. Throws if any request fails; the stores
+// are refreshed either way so the UI matches what was stored.
+async function logNutritionTotals(totals: Record<VoiceMetric, number>) {
   const requests: Array<Promise<unknown>> = []
 
-  if (preview.totals.calorie > 0 && !isTrackLocked('calorie')) {
-    requests.push(calorieApi.addEntry(preview.totals.calorie))
+  if (totals.calorie > 0 && !isTrackLocked('calorie')) {
+    requests.push(calorieApi.addEntry(totals.calorie))
   }
 
   for (const metric of voiceEntryMetrics) {
-    if (preview.totals[metric] > 0 && !isTrackLocked(metric)) {
-      requests.push(nutritionApi.addEntry(metric, preview.totals[metric]))
+    if (totals[metric] > 0 && !isTrackLocked(metric)) {
+      requests.push(nutritionApi.addEntry(metric, totals[metric]))
     }
   }
 
   if (requests.length === 0) {
-    closeVoicePreview()
+    return false
+  }
+
+  try {
+    await Promise.all(requests)
+  } finally {
+    await Promise.all([
+      calorieStore.refreshData({ setLoading: false }),
+      nutritionStore.refreshData({ setLoading: false }),
+      entryDividerStore.fetchEntries({ setLoading: false }),
+    ])
+  }
+
+  return true
+}
+
+async function confirmVoicePreview() {
+  if (voicePreview.value === null || savingVoicePreview.value) {
     return
   }
 
@@ -433,22 +460,77 @@ async function confirmVoicePreview() {
   voiceError.value = null
 
   try {
-    await Promise.all(requests)
-    voicePreview.value = null
-    voiceState.value = 'idle'
+    await logNutritionTotals(voicePreview.value.totals)
   } catch (error) {
     console.error('Failed to save voice entry totals:', error)
-    voicePreview.value = null
-    voiceState.value = 'idle'
     voiceError.value =
       'One or more entries failed to save. Totals were refreshed to match what was stored.'
   } finally {
     savingVoicePreview.value = false
-    await Promise.all([
-      calorieStore.refreshData({ setLoading: false }),
-      nutritionStore.refreshData({ setLoading: false }),
-      entryDividerStore.fetchEntries({ setLoading: false }),
-    ])
+    voicePreview.value = null
+    voiceState.value = 'idle'
+  }
+}
+
+function openLabelCamera() {
+  if (labelReading.value) {
+    return
+  }
+
+  labelError.value = null
+  labelFileInput.value?.click()
+}
+
+async function handleLabelPhoto(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Clear so picking the same photo again still fires change.
+  input.value = ''
+
+  if (!file) {
+    return
+  }
+
+  labelReading.value = true
+  labelError.value = null
+
+  try {
+    const image = await downscaleImage(file)
+    const response = await labelApi.parse(image)
+    labelResult.value = response.data
+  } catch (error) {
+    console.error('Failed to read nutrition label:', error)
+    labelError.value = 'The label could not be read. Try another photo.'
+  } finally {
+    labelReading.value = false
+  }
+}
+
+function closeLabelResult() {
+  if (savingLabel.value) {
+    return
+  }
+
+  labelResult.value = null
+}
+
+async function submitLabelTotals(totals: Record<VoiceMetric, number>) {
+  if (savingLabel.value) {
+    return
+  }
+
+  savingLabel.value = true
+  labelError.value = null
+
+  try {
+    await logNutritionTotals(totals)
+  } catch (error) {
+    console.error('Failed to save label totals:', error)
+    labelError.value =
+      'One or more entries failed to save. Totals were refreshed to match what was stored.'
+  } finally {
+    savingLabel.value = false
+    labelResult.value = null
   }
 }
 
@@ -524,6 +606,34 @@ onBeforeUnmount(() => {
             />
           </svg>
         </button>
+        <button
+          class="track-action-button track-action-button--label"
+          type="button"
+          aria-label="Scan nutrition label"
+          title="Scan nutrition label"
+          :disabled="labelReading || savingLabel"
+          @click="openLabelCamera"
+        >
+          <span v-if="labelReading" class="track-action-spinner"></span>
+          <svg v-else class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8A1.5 1.5 0 0 1 10.55 3.5h2.9a1.5 1.5 0 0 1 1.25.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-linejoin="round"
+              stroke-width="2"
+            />
+            <circle cx="12" cy="12.5" r="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+          </svg>
+        </button>
+        <input
+          ref="labelFileInput"
+          class="label-file-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          @change="handleLabelPhoto"
+        />
         <!-- Temporarily hidden: voice entry button.
         <VoiceEntryButton
           :state="voiceState"
@@ -538,6 +648,9 @@ onBeforeUnmount(() => {
     <div class="input-section">
       <p v-if="voiceError" class="voice-error">
         {{ voiceError }}
+      </p>
+      <p v-if="labelError" class="voice-error">
+        {{ labelError }}
       </p>
       <Keyboard
         :mode="appStore.activeMetric"
@@ -554,6 +667,14 @@ onBeforeUnmount(() => {
       :loading="streakLoading"
       :error="streakError"
       @close="closeStreakModal"
+    />
+    <LabelScanModal
+      v-if="labelResult !== null"
+      :result="labelResult"
+      :locked-metrics="lockedLabelMetrics"
+      :submitting="savingLabel"
+      @cancel="closeLabelResult"
+      @submit="submitLabelTotals"
     />
     <VoiceEntryModal
       v-if="voicePreview !== null && voiceState === 'preview'"
@@ -584,8 +705,8 @@ onBeforeUnmount(() => {
 
 .track-actions {
   display: grid;
-  /* Two columns while the streak and voice buttons are hidden; was repeat(4, ...). */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Three columns while the streak and voice buttons are hidden; was repeat(4, ...). */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md) var(--spacing-md);
   flex-shrink: 0;
@@ -627,6 +748,20 @@ onBeforeUnmount(() => {
   color: #c4b5fd;
   border-color: rgba(196, 181, 253, 0.28);
   background: color-mix(in srgb, #8b5cf6 12%, transparent);
+}
+
+.track-action-button--label {
+  --track-action-accent: #7dd3fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--track-action-accent);
+  border-color: rgba(125, 211, 252, 0.28);
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+}
+
+.label-file-input {
+  display: none;
 }
 
 .settings-icon {

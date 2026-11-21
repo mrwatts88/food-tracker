@@ -42,6 +42,7 @@ import { getGoalWeight, saveGoalWeight } from './lib/goal-weight'
 import { DEFAULT_GOAL_CONFIG, getGoalConfig } from './lib/goals'
 import { formatDate, formatTimestamp, getTodayBounds } from './lib/time'
 import { calculateTdeeStats } from './lib/tdee'
+import { createLabelParser, supportedLabelImageTypes, type LabelParser } from './lib/label'
 import { createVoiceParser, type VoiceParser } from './lib/voice'
 
 type AppDependencies = {
@@ -50,6 +51,7 @@ type AppDependencies = {
   config?: AppConfig
   notifier?: AlertNotifier | null
   voiceParser?: VoiceParser | null
+  labelParser?: LabelParser | null
 }
 
 class ApiError extends Error {
@@ -64,6 +66,8 @@ class ApiError extends Error {
 const calorieEntrySchema = z.object({
   amount: z.number().int().positive()
 })
+
+const MAX_LABEL_IMAGE_BYTES = 4 * 1024 * 1024
 
 const textParseSchema = z.object({
   text: z.string().trim().min(1).max(2000)
@@ -116,6 +120,8 @@ export function createApp(dependencies: AppDependencies = {}) {
   const notifier = dependencies.notifier !== undefined ? dependencies.notifier : createAlertNotifier(config)
   const voiceParser =
     dependencies.voiceParser !== undefined ? dependencies.voiceParser : createVoiceParser(config)
+  const labelParser =
+    dependencies.labelParser !== undefined ? dependencies.labelParser : createLabelParser(config)
 
   if (config.corsOrigin) {
     app.use(
@@ -174,6 +180,43 @@ export function createApp(dependencies: AppDependencies = {}) {
     }
 
     const parsed = await voiceParser.parseAudio(file)
+    return c.json(parsed)
+  })
+
+  app.post('/label/parse', async c => {
+    if (labelParser === null) {
+      return jsonError('Label reading is not configured', 503)
+    }
+
+    const contentType = c.req.header('content-type') ?? ''
+
+    if (!contentType.toLowerCase().includes('multipart/form-data')) {
+      return jsonError('Invalid multipart form data', 400)
+    }
+
+    let formData: FormData
+
+    try {
+      formData = await c.req.formData()
+    } catch {
+      return jsonError('Invalid multipart form data', 400)
+    }
+
+    const file = formData.get('image')
+
+    if (!(file instanceof File) || file.size === 0) {
+      return jsonError('image file is required', 400)
+    }
+
+    if (!(supportedLabelImageTypes as readonly string[]).includes(file.type)) {
+      return jsonError('image must be JPEG, PNG, WebP, or GIF', 400)
+    }
+
+    if (file.size > MAX_LABEL_IMAGE_BYTES) {
+      return jsonError('image is too large', 413)
+    }
+
+    const parsed = await labelParser.parseImage(file)
     return c.json(parsed)
   })
 
