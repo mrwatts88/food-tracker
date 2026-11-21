@@ -330,7 +330,7 @@ function formatTotal(metric: LabelMetric, value: number) {
   position: relative;
   width: 100%;
   max-width: 428px;
-  max-height: 88vh;
+  max-height: calc(100dvh - 32px);
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid rgba(125, 211, 252, 0.2);
@@ -420,11 +420,6 @@ function formatTotal(metric: LabelMetric, value: number) {
   -webkit-tap-highlight-color: transparent;
 }
 
-.field-row.is-active {
-  border-color: rgba(125, 211, 252, 0.45);
-  background: rgba(14, 165, 233, 0.1);
-}
-
 .field-row.is-locked {
   opacity: 0.5;
   cursor: default;
@@ -469,7 +464,8 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .field-row.is-active .field-input {
-  border-color: rgba(125, 211, 252, 0.6);
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
 }
 
 /* Mimics selected text: the next key replaces the whole value. */
@@ -479,7 +475,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .pad-wrap {
-  padding: 4px 12px 2px;
+  padding: 4px 12px 16px;
 }
 
 .field-unit {
@@ -489,7 +485,7 @@ function formatTotal(metric: LabelMetric, value: number) {
 }
 
 .amount-step {
-  padding: 10px 12px;
+  padding: 10px 12px 16px;
   display: grid;
   gap: 8px;
 }
@@ -501,8 +497,10 @@ function formatTotal(metric: LabelMetric, value: number) {
   gap: 8px;
   min-height: 56px;
   padding: 6px 12px;
+  border: 1px solid #38bdf8;
   border-radius: var(--border-radius);
   background: var(--color-background);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
 }
 
 .amount-value {
